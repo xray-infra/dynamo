@@ -31,7 +31,6 @@ func (v *sharedValidation) validateDynamoComponentDeploymentSharedSpecV1alpha1(
 	spec *nvidiacomv1alpha1.DynamoComponentDeploymentSharedSpec,
 	fldPath *field.Path,
 	dynamoNamespace string,
-	dynamoSidecar *string,
 ) field.ErrorList {
 	allErrs := field.ErrorList{}
 	if value, invalid := invalidVLLMDistributedExecutorBackendAnnotation(spec.Annotations); invalid {
@@ -81,7 +80,7 @@ func (v *sharedValidation) validateDynamoComponentDeploymentSharedSpecV1alpha1(
 
 	// Validate runtime compatibility against the source-version fields.
 	if v.validatesRuntimeVersionFor(runtimeVersionSourceV1Alpha1) {
-		image, imagePath := runtimeVersionImageAndPathV1Alpha1(spec, fldPath, dynamoSidecar)
+		image, imagePath := runtimeVersionImageAndPathV1Alpha1(spec, fldPath)
 		if err := eppRuntimeCompatibilityError(
 			eppRuntimeContractV1Alpha1(spec, image),
 			fldPath.Child("eppConfig"),
@@ -108,14 +107,13 @@ func (v *sharedValidation) validateDynamoComponentDeploymentSharedSpecUpdateV1al
 	newSpec *nvidiacomv1alpha1.DynamoComponentDeploymentSharedSpec,
 	oldSpec *nvidiacomv1alpha1.DynamoComponentDeploymentSharedSpec,
 	fldPath *field.Path,
-	newDynamoSidecar, oldDynamoSidecar *string,
 ) field.ErrorList {
 	allErrs := field.ErrorList{}
 
 	// Ratchet only complete, unchanged source-version runtime contract violations.
 	if v.hasRuntimeVersionSource(runtimeVersionSourceV1Alpha1) {
-		newImage, imagePath := runtimeVersionImageAndPathV1Alpha1(newSpec, fldPath, newDynamoSidecar)
-		oldImage, _ := runtimeVersionImageAndPathV1Alpha1(oldSpec, fldPath, oldDynamoSidecar)
+		newImage, imagePath := runtimeVersionImageAndPathV1Alpha1(newSpec, fldPath)
+		oldImage, _ := runtimeVersionImageAndPathV1Alpha1(oldSpec, fldPath)
 		overrideChanged := newSpec.RuntimeVersionOverride != oldSpec.RuntimeVersionOverride
 
 		if newImage == "" && oldImage != "" {
