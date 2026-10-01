@@ -809,9 +809,6 @@ fn register_model<'p>(
         // HuggingFace downloads and register directly. These model types
         // handle model loading internally; no tokenizer extraction is
         // needed and the source path is not required to be a HF repo.
-        // Classify / Pooling models with `tensor_model_config` attached
-        // take the same path; see the `is_classify_tensor` /
-        // `is_pooling_tensor` definitions above for why.
         if is_tensor_based
             || is_images
             || is_videos
