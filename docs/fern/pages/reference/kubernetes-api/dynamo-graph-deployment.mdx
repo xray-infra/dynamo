@@ -50,7 +50,7 @@ spec:
 </ParamField>
 
 <Note>
-  Each new component must supply a `podTemplate.spec.containers` entry named `main` with a non-empty `image`. For an image without a parseable semantic-version tag, set `spec.components[*].runtimeVersionOverride` to the image's Dynamo runtime version. Also set it when the tag identifies a different version, such as the inference engine's version. See [Runtime Version Compatibility](dynamo-component-deployment.mdx#runtime-version-compatibility). DGD has no graph-level `runtimeVersionOverride`; the DGDR-level field supplies a default when generating components.
+  Each new component must supply `spec.components[*].podTemplate.spec.containers[name=main]` with a non-empty `image`. The runtime image is `spec.components[*].podTemplate.spec.initContainers[name=runtime].image` in Dynamo sidecar mode, or `spec.components[*].podTemplate.spec.containers[name=main].image` otherwise. If that image has no parseable semantic-version tag, set `spec.components[*].runtimeVersionOverride` to its Dynamo runtime version. Also set it when the tag identifies a different version, such as the inference engine's version. See [Runtime Version Compatibility](dynamo-component-deployment.mdx#runtime-version-compatibility). DGD has no graph-level `runtimeVersionOverride`; the DGDR-level field supplies a default when generating components.
 </Note>
 
 <ParamField path="providerOverride" type="ProviderOverride">
@@ -58,7 +58,7 @@ spec:
 </ParamField>
 
 <ParamField path="backendFramework" type="string">
-  Backend framework for the graph. Sets backend-specific defaults the operator injects into each component's `main` container.
+  Backend framework for the graph. Sets backend-specific defaults the operator injects into `spec.components[*].podTemplate.spec.containers[name=main]`.
 
   <span className="enum-values"><span className="enum-label">Allowed values:</span> <Badge intent="note" minimal>sglang</Badge> <Badge intent="note" minimal>vllm</Badge> <Badge intent="note" minimal>trtllm</Badge></span>
 </ParamField>
