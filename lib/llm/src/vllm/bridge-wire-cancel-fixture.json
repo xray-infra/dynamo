@@ -1,0 +1,49 @@
+{
+  "native_request_id": "stale-reprepare",
+  "reservation_id": "stale",
+  "authority_revision": 1,
+  "cancelled": true,
+  "rank_results": [
+    {
+      "rank_id": 0,
+      "cancelled": true
+    },
+    {
+      "rank_id": 1,
+      "cancelled": true
+    },
+    {
+      "rank_id": 2,
+      "cancelled": true
+    },
+    {
+      "rank_id": 3,
+      "cancelled": true
+    }
+  ],
+  "prompt_cache_authority_proof": {
+    "claims": {
+      "operation": "receipts",
+      "issued_at_ms": 1000000,
+      "retain_for_ms": 300000,
+      "runtime_profile_digest": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "version": 1,
+      "operation_id": "d1522e795d3500d46723bb85fdccad9c75be471a6c706a4df847ab2d02b7e266",
+      "nonce": "518164c2ec46df692d7e61ce58f9354d2758048424b9e2bc5a3a7b41ed4c2acb",
+      "namespace_digest": "dced9f0ab75b1eb2e3463a1e769776fc1a0c450aa9ddd724c434e9667f31cd93",
+      "deadline_ms": 1300000,
+      "native_request_id": "stale-reprepare",
+      "model": "glm_flash",
+      "authority_revision": 1,
+      "request_started_at_ms": 1000000,
+      "native_incarnation": "cpu-wire-incarnation",
+      "source_digest": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+      "reservation_id": "stale",
+      "full_render_digest": "0d6b75f57c7db9bc1690a3caf75b27bf10dd6d7aed3fe139d1bd6252544b1af0",
+      "payload_digest": "bd7ed9a277dbc40fc66206a06218ea2a43aa9c6e999c254bf733f8a79f10b8ea",
+      "token_ids_digest": "c7758d5531b69a27ca99ba206739d64120ce62da634e51925e9351461e45d54f",
+      "native_origin": "http://native:8000"
+    },
+    "mac": "275d1afd9fdd553c407dbd26cb9cc72d33c4b3e304ce704194d991be807e728f"
+  }
+}

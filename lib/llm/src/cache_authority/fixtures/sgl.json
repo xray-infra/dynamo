@@ -1,0 +1,48 @@
+{
+  "reservation_id": "lease",
+  "authority_revision": 1,
+  "endpoint_id": "endpoint",
+  "native_origin_uuid": "native",
+  "runtime_profile_digest": "profile",
+  "namespace_digest": "nsdigest",
+  "native_mark_tokens": 8,
+  "native_page_tokens": 8,
+  "ttl_ms": 300000,
+  "request_started_at_ms": 1000000,
+  "expires_at_ms": 1300000,
+  "retain_for_ms": 300000,
+  "required_tiers": [
+    "L1",
+    "L2"
+  ],
+  "published_tokens": 8,
+  "actual_read_tokens": 0,
+  "write_committed_at_ms": 1000000,
+  "tier_receipts": [
+    {
+      "tier": "L1",
+      "retained_tokens": 8,
+      "committed_at_ms": 1000000,
+      "retain_until_ms": 1300000,
+      "native_clock_domain": "native-boot",
+      "monotonic_event_ns": 10000000000,
+      "receive_monotonic_ns": 10000000000,
+      "retain_until_monotonic_ns": 310000000000,
+      "ack_retain_for_ms": 300000,
+      "pin_receipt_id": "a0e363e8-188c-4cb6-a59d-cb309b04a156"
+    },
+    {
+      "tier": "L2",
+      "retained_tokens": 8,
+      "committed_at_ms": 1002000,
+      "retain_until_ms": 1300000,
+      "native_clock_domain": "native-boot",
+      "monotonic_event_ns": 12000000000,
+      "receive_monotonic_ns": 10000000000,
+      "retain_until_monotonic_ns": 310000000000,
+      "ack_retain_for_ms": 300000,
+      "pin_receipt_id": "a0e363e8-188c-4cb6-a59d-cb309b04a156"
+    }
+  ],
+  "pin_receipt_id": "a0e363e8-188c-4cb6-a59d-cb309b04a156"
+}

@@ -1,0 +1,31 @@
+{
+  "reservation_id": "r1",
+  "authority_revision": 11,
+  "native_origin_uuid": "native-process-uuid",
+  "runtime_profile_digest": "runtime-digest",
+  "namespace_digest": "03ff83967116685d55f977b262e794e470a5c0514f3d55d003d59f77293588ed",
+  "generation": 7,
+  "endpoint_id": "e8",
+  "native_mark_tokens": 8,
+  "published_tokens": 8,
+  "actual_read_tokens": 4,
+  "request_started_at_ms": 1000000000,
+  "full_prompt_digest": "actual-render-digest",
+  "token_ids_digest": "29101ebf1ead685029508789eee51c4d4fff65524064d8e32a48efded7036982",
+  "prefix_digest": "29101ebf1ead685029508789eee51c4d4fff65524064d8e32a48efded7036982",
+  "tier_receipts": [
+    {
+      "tier": "l1",
+      "retained_tokens": 8,
+      "committed_at_ms": 1000000050,
+      "retain_until_ms": 1000300000,
+      "native_clock_domain": "boot-uuid:monotonic",
+      "receive_monotonic_ns": 1000000000000,
+      "requested_retain_for_ms": 300000,
+      "ack_retain_for_ms": 300000,
+      "monotonic_event_ns": 1000050000000,
+      "retain_until_monotonic_ns": 1300000000000
+    }
+  ],
+  "pin_receipt_id": "740700c65b2214feea32fa3567b6e5fb482ff9d3cd739e9f581bc659ed93166a"
+}

@@ -1,0 +1,437 @@
+{
+  "artifact": {
+    "kv_compat_descriptor": {
+      "config_sha256": "c2b03817e38628d621ba6caa0bbc28622aafaf696ecb60ac45325a4e28157229",
+      "dcp_size": 1,
+      "indexer_format": "dsa-index-fp8-scale-f32",
+      "indexer_page_nbytes": 8448,
+      "kv_format": "dsa-fp8-scaled-rope-bf16",
+      "layer_bitmap": [
+        0,
+        1
+      ],
+      "layout": "layer_first",
+      "logical_page": 64,
+      "mla_page_nbytes": 41984,
+      "model_manifest_sha256": "c2b03817e38628d621ba6caa0bbc28622aafaf696ecb60ac45325a4e28157229",
+      "pd_pool_abi": {
+        "dsa_kv_cache_store_fp8": true,
+        "global_layer_ids": [
+          0,
+          1
+        ],
+        "index_head_dim": 128,
+        "index_layer_ids": [
+          1
+        ],
+        "index_rows": [
+          {
+            "dtype": "torch.uint8",
+            "layer_id": 1,
+            "page_nbytes": 8448,
+            "shape_tail": [
+              8448
+            ],
+            "stride": [
+              8448,
+              1
+            ]
+          }
+        ],
+        "kv_lora_rank": 512,
+        "mla_rows": [
+          {
+            "dtype": "torch.uint8",
+            "layer_id": 0,
+            "page_nbytes": 41984,
+            "shape_tail": [
+              1,
+              656
+            ],
+            "stride": [
+              656,
+              656,
+              1
+            ]
+          },
+          {
+            "dtype": "torch.uint8",
+            "layer_id": 1,
+            "page_nbytes": 41984,
+            "shape_tail": [
+              1,
+              656
+            ],
+            "stride": [
+              656,
+              656,
+              1
+            ]
+          }
+        ],
+        "page_size": 64,
+        "pool_class": "DSATokenToKVPool",
+        "qk_rope_head_dim": 64,
+        "quant_block_size": 128
+      },
+      "physical_page": 64,
+      "position_sha256": "c2b03817e38628d621ba6caa0bbc28622aafaf696ecb60ac45325a4e28157229",
+      "pp_size": 1,
+      "tokenizer_sha256": "c2b03817e38628d621ba6caa0bbc28622aafaf696ecb60ac45325a4e28157229",
+      "tp_size": 8,
+      "version": 1,
+      "attn_tp_size": 2,
+      "attn_cp_size": 4
+    },
+    "kv_compat_digest": "0e49e37586bcfe2bfcea2d9a3bec579629fcf55ac3f3716a2d85c2f936d54ddf",
+    "model": "GLM-5.3",
+    "native_incarnation": "synthetic-rank-prefill-0",
+    "native_origin": "http://127.0.0.1:30000",
+    "native_role_registration_digest": "f5187b2b08115e267f151053366eeea043e7ee904e0c1db9ca9904d748e506c3",
+    "prefill_bootstrap_bind_host": "0.0.0.0",
+    "prefill_bootstrap_host": "127.0.0.1",
+    "prefill_bootstrap_port": 8998,
+    "qualified_rank_set_digest": "f83f4622916920d498b4269afbced9294f7f0a1858f25919eadde3c64267a834",
+    "ranks": [
+      {
+        "dcp_rank": 0,
+        "replica_rank": 0,
+        "tp_rank": 0
+      },
+      {
+        "dcp_rank": 0,
+        "replica_rank": 1,
+        "tp_rank": 1
+      },
+      {
+        "dcp_rank": 0,
+        "replica_rank": 2,
+        "tp_rank": 2
+      },
+      {
+        "dcp_rank": 0,
+        "replica_rank": 3,
+        "tp_rank": 3
+      },
+      {
+        "dcp_rank": 0,
+        "replica_rank": 4,
+        "tp_rank": 4
+      },
+      {
+        "dcp_rank": 0,
+        "replica_rank": 5,
+        "tp_rank": 5
+      },
+      {
+        "dcp_rank": 0,
+        "replica_rank": 6,
+        "tp_rank": 6
+      },
+      {
+        "dcp_rank": 0,
+        "replica_rank": 7,
+        "tp_rank": 7
+      }
+    ],
+    "registrations": [
+      {
+        "boot_id": "synthetic-boot",
+        "dcp_rank": 0,
+        "native_rank_incarnation": "synthetic-rank-prefill-0",
+        "pid": 100,
+        "process_start_ticks": 1000,
+        "replica_rank": 0,
+        "tp_rank": 0
+      },
+      {
+        "boot_id": "synthetic-boot",
+        "dcp_rank": 0,
+        "native_rank_incarnation": "synthetic-rank-prefill-1",
+        "pid": 101,
+        "process_start_ticks": 1001,
+        "replica_rank": 1,
+        "tp_rank": 1
+      },
+      {
+        "boot_id": "synthetic-boot",
+        "dcp_rank": 0,
+        "native_rank_incarnation": "synthetic-rank-prefill-2",
+        "pid": 102,
+        "process_start_ticks": 1002,
+        "replica_rank": 2,
+        "tp_rank": 2
+      },
+      {
+        "boot_id": "synthetic-boot",
+        "dcp_rank": 0,
+        "native_rank_incarnation": "synthetic-rank-prefill-3",
+        "pid": 103,
+        "process_start_ticks": 1003,
+        "replica_rank": 3,
+        "tp_rank": 3
+      },
+      {
+        "boot_id": "synthetic-boot",
+        "dcp_rank": 0,
+        "native_rank_incarnation": "synthetic-rank-prefill-4",
+        "pid": 104,
+        "process_start_ticks": 1004,
+        "replica_rank": 4,
+        "tp_rank": 4
+      },
+      {
+        "boot_id": "synthetic-boot",
+        "dcp_rank": 0,
+        "native_rank_incarnation": "synthetic-rank-prefill-5",
+        "pid": 105,
+        "process_start_ticks": 1005,
+        "replica_rank": 5,
+        "tp_rank": 5
+      },
+      {
+        "boot_id": "synthetic-boot",
+        "dcp_rank": 0,
+        "native_rank_incarnation": "synthetic-rank-prefill-6",
+        "pid": 106,
+        "process_start_ticks": 1006,
+        "replica_rank": 6,
+        "tp_rank": 6
+      },
+      {
+        "boot_id": "synthetic-boot",
+        "dcp_rank": 0,
+        "native_rank_incarnation": "synthetic-rank-prefill-7",
+        "pid": 107,
+        "process_start_ticks": 1007,
+        "replica_rank": 7,
+        "tp_rank": 7
+      }
+    ],
+    "role": "prefill",
+    "runtime_profile_digest": "5849f9def09e34fdd5af5d09e12ee109dc35c9326c4e4e879a71a1c97250bfeb",
+    "schema_version": 1,
+    "source_digest": "8b61f13b9c285df9193050cb75ee690460a800f83ee5956247d97b0d729a81ab",
+    "weights_attestation_digest": "9999999999999999999999999999999999999999999999999999999999999999"
+  },
+  "artifact_digest": "f69a32f4e15324f1b9e5d1bf7bd562e05b3a70132e88f2ef16528483cee4ba07",
+  "authority_secret_path": "/synthetic-not-installed/authority-secret",
+  "peer_artifact": {
+    "kv_compat_descriptor": {
+      "config_sha256": "c2b03817e38628d621ba6caa0bbc28622aafaf696ecb60ac45325a4e28157229",
+      "dcp_size": 4,
+      "indexer_format": "dsa-index-fp8-scale-f32",
+      "indexer_page_nbytes": 8448,
+      "kv_format": "dsa-fp8-scaled-rope-bf16",
+      "layer_bitmap": [
+        0,
+        1
+      ],
+      "layout": "layer_first",
+      "logical_page": 256,
+      "mla_page_nbytes": 41984,
+      "model_manifest_sha256": "c2b03817e38628d621ba6caa0bbc28622aafaf696ecb60ac45325a4e28157229",
+      "pd_pool_abi": {
+        "dsa_kv_cache_store_fp8": true,
+        "global_layer_ids": [
+          0,
+          1
+        ],
+        "index_head_dim": 128,
+        "index_layer_ids": [
+          1
+        ],
+        "index_rows": [
+          {
+            "dtype": "torch.uint8",
+            "layer_id": 1,
+            "page_nbytes": 8448,
+            "shape_tail": [
+              8448
+            ],
+            "stride": [
+              8448,
+              1
+            ]
+          }
+        ],
+        "kv_lora_rank": 512,
+        "mla_rows": [
+          {
+            "dtype": "torch.uint8",
+            "layer_id": 0,
+            "page_nbytes": 41984,
+            "shape_tail": [
+              1,
+              656
+            ],
+            "stride": [
+              656,
+              656,
+              1
+            ]
+          },
+          {
+            "dtype": "torch.uint8",
+            "layer_id": 1,
+            "page_nbytes": 41984,
+            "shape_tail": [
+              1,
+              656
+            ],
+            "stride": [
+              656,
+              656,
+              1
+            ]
+          }
+        ],
+        "page_size": 64,
+        "pool_class": "DSATokenToKVPool",
+        "qk_rope_head_dim": 64,
+        "quant_block_size": 128
+      },
+      "physical_page": 64,
+      "position_sha256": "c2b03817e38628d621ba6caa0bbc28622aafaf696ecb60ac45325a4e28157229",
+      "pp_size": 1,
+      "tokenizer_sha256": "c2b03817e38628d621ba6caa0bbc28622aafaf696ecb60ac45325a4e28157229",
+      "tp_size": 8,
+      "version": 1,
+      "attn_tp_size": 8,
+      "attn_cp_size": 1
+    },
+    "kv_compat_digest": "1e9c75cd4bcec1ef2a8e4d7e1846a45ec4df58728c14a46178ef881b22047bb0",
+    "model": "GLM-5.3",
+    "native_incarnation": "synthetic-rank-decode-0",
+    "native_origin": "http://127.0.0.1:30001",
+    "native_role_registration_digest": "4bd08f4b9fd61ea59006eaec3af5127b118dac98d4a824bd4d0fff96cbe8d266",
+    "prefill_bootstrap_bind_host": null,
+    "prefill_bootstrap_host": null,
+    "prefill_bootstrap_port": null,
+    "qualified_rank_set_digest": "a35dd45c376a0e2c63096c27b7553e4c5bd22cbcf92f19bca0e3dd18d403c483",
+    "ranks": [
+      {
+        "dcp_rank": 0,
+        "replica_rank": 0,
+        "tp_rank": 0
+      },
+      {
+        "dcp_rank": 1,
+        "replica_rank": 0,
+        "tp_rank": 1
+      },
+      {
+        "dcp_rank": 2,
+        "replica_rank": 0,
+        "tp_rank": 2
+      },
+      {
+        "dcp_rank": 3,
+        "replica_rank": 0,
+        "tp_rank": 3
+      },
+      {
+        "dcp_rank": 0,
+        "replica_rank": 1,
+        "tp_rank": 4
+      },
+      {
+        "dcp_rank": 1,
+        "replica_rank": 1,
+        "tp_rank": 5
+      },
+      {
+        "dcp_rank": 2,
+        "replica_rank": 1,
+        "tp_rank": 6
+      },
+      {
+        "dcp_rank": 3,
+        "replica_rank": 1,
+        "tp_rank": 7
+      }
+    ],
+    "registrations": [
+      {
+        "boot_id": "synthetic-boot",
+        "dcp_rank": 0,
+        "native_rank_incarnation": "synthetic-rank-decode-0",
+        "pid": 100,
+        "process_start_ticks": 1000,
+        "replica_rank": 0,
+        "tp_rank": 0
+      },
+      {
+        "boot_id": "synthetic-boot",
+        "dcp_rank": 1,
+        "native_rank_incarnation": "synthetic-rank-decode-1",
+        "pid": 101,
+        "process_start_ticks": 1001,
+        "replica_rank": 0,
+        "tp_rank": 1
+      },
+      {
+        "boot_id": "synthetic-boot",
+        "dcp_rank": 2,
+        "native_rank_incarnation": "synthetic-rank-decode-2",
+        "pid": 102,
+        "process_start_ticks": 1002,
+        "replica_rank": 0,
+        "tp_rank": 2
+      },
+      {
+        "boot_id": "synthetic-boot",
+        "dcp_rank": 3,
+        "native_rank_incarnation": "synthetic-rank-decode-3",
+        "pid": 103,
+        "process_start_ticks": 1003,
+        "replica_rank": 0,
+        "tp_rank": 3
+      },
+      {
+        "boot_id": "synthetic-boot",
+        "dcp_rank": 0,
+        "native_rank_incarnation": "synthetic-rank-decode-4",
+        "pid": 104,
+        "process_start_ticks": 1004,
+        "replica_rank": 1,
+        "tp_rank": 4
+      },
+      {
+        "boot_id": "synthetic-boot",
+        "dcp_rank": 1,
+        "native_rank_incarnation": "synthetic-rank-decode-5",
+        "pid": 105,
+        "process_start_ticks": 1005,
+        "replica_rank": 1,
+        "tp_rank": 5
+      },
+      {
+        "boot_id": "synthetic-boot",
+        "dcp_rank": 2,
+        "native_rank_incarnation": "synthetic-rank-decode-6",
+        "pid": 106,
+        "process_start_ticks": 1006,
+        "replica_rank": 1,
+        "tp_rank": 6
+      },
+      {
+        "boot_id": "synthetic-boot",
+        "dcp_rank": 3,
+        "native_rank_incarnation": "synthetic-rank-decode-7",
+        "pid": 107,
+        "process_start_ticks": 1007,
+        "replica_rank": 1,
+        "tp_rank": 7
+      }
+    ],
+    "role": "decode",
+    "runtime_profile_digest": "5849f9def09e34fdd5af5d09e12ee109dc35c9326c4e4e879a71a1c97250bfeb",
+    "schema_version": 1,
+    "source_digest": "8b61f13b9c285df9193050cb75ee690460a800f83ee5956247d97b0d729a81ab",
+    "weights_attestation_digest": "9999999999999999999999999999999999999999999999999999999999999999"
+  },
+  "peer_artifact_digest": "ac45b0031a74939151d36511ac9b95a7d1f9e19e6cc9c6e9e835e3e1c22a8bfc",
+  "qualification_receipt_id": "synthetic-controller-approval",
+  "schema_version": 1
+}

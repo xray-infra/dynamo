@@ -1,0 +1,250 @@
+{
+  "fixture_only": true,
+  "live_native_qualified": false,
+  "synthetic_authority_key": true,
+  "raw_tenant_salt": "tenant-stable",
+  "kv_compat_digest": "efefefefefefefefefefefefefefefefefefefefefefefefefefefefefefefef",
+  "actual_physical_namespace": "506664117a754624678b886855434f57965fa737cd2352f2d7b75f159f4a2635",
+  "canonical_native_request": {
+    "max_tokens": 64,
+    "messages": [
+      {
+        "content": [
+          {
+            "text": "HEAD",
+            "type": "text"
+          },
+          {
+            "text": "UNMARKED TAIL",
+            "type": "text"
+          },
+          {
+            "text": "END",
+            "type": "text"
+          }
+        ],
+        "reasoning_content": "前想",
+        "role": "assistant",
+        "tool_calls": [
+          {
+            "function": {
+              "arguments": "{\"x\":1}",
+              "name": "f"
+            },
+            "id": "t0",
+            "type": "function"
+          },
+          {
+            "function": {
+              "arguments": "{\"y\":2}",
+              "name": "g"
+            },
+            "id": "t1",
+            "type": "function"
+          }
+        ]
+      }
+    ],
+    "model": "candidate-only",
+    "prompt_cache_blocks": [
+      {
+        "endpoint_id": "write:authority-fixture-1",
+        "message_index": 0,
+        "source": "messages",
+        "tool_call_index": 0,
+        "ttl_ms": 300000
+      }
+    ],
+    "prompt_cache_message_order": [
+      {
+        "message_index": 0,
+        "parts": [
+          {
+            "content_end_byte": 6,
+            "content_start_byte": 0,
+            "kind": "reasoning"
+          },
+          {
+            "content_block_index": 0,
+            "kind": "content"
+          },
+          {
+            "kind": "tool_call",
+            "tool_call_index": 0
+          },
+          {
+            "content_block_index": 1,
+            "kind": "content"
+          },
+          {
+            "kind": "tool_call",
+            "tool_call_index": 1
+          },
+          {
+            "content_block_index": 2,
+            "kind": "content"
+          }
+        ]
+      }
+    ],
+    "prompt_cache_read_candidates": [
+      {
+        "endpoint_id": "read:authority-fixture-1",
+        "message_index": 0,
+        "source": "messages",
+        "tool_call_index": 0
+      },
+      {
+        "content_block_index": 0,
+        "endpoint_id": "read:authority-fixture-2",
+        "message_index": 0,
+        "source": "messages"
+      }
+    ],
+    "stream": false,
+    "prompt_cache_namespace_digest": "506664117a754624678b886855434f57965fa737cd2352f2d7b75f159f4a2635",
+    "request_id": "authority-rid",
+    "cache_salt": "tenant-stable",
+    "prompt_cache_canonical_body": "{\"max_tokens\":64,\"messages\":[{\"content\":[{\"text\":\"HEAD\",\"type\":\"text\"},{\"text\":\"UNMARKED TAIL\",\"type\":\"text\"},{\"text\":\"END\",\"type\":\"text\"}],\"reasoning_content\":\"前想\",\"role\":\"assistant\",\"tool_calls\":[{\"function\":{\"arguments\":\"{\\\"x\\\":1}\",\"name\":\"f\"},\"id\":\"t0\",\"type\":\"function\"},{\"function\":{\"arguments\":\"{\\\"y\\\":2}\",\"name\":\"g\"},\"id\":\"t1\",\"type\":\"function\"}]}],\"model\":\"candidate-only\",\"stream\":false,\"request_id\":\"authority-rid\",\"cache_salt\":\"tenant-stable\"}",
+    "prompt_cache_authority_proof": {
+      "claims": {
+        "version": 1,
+        "operation": "render",
+        "operation_id": "fixture-1",
+        "nonce": "nonce-1",
+        "model": "candidate-only",
+        "native_origin": "http://qualified-worker:8000",
+        "native_incarnation": "d858a998-2daf-47ba-8ca3-62a1ac93a49b",
+        "source_digest": "1212121212121212121212121212121212121212121212121212121212121212",
+        "runtime_profile_digest": "abababababababababababababababababababababababababababababababab",
+        "reservation_id": "",
+        "authority_revision": 0,
+        "native_request_id": "authority-rid",
+        "namespace_digest": "506664117a754624678b886855434f57965fa737cd2352f2d7b75f159f4a2635",
+        "full_render_digest": "",
+        "token_ids_digest": "",
+        "request_started_at_ms": 1000,
+        "issued_at_ms": 2000,
+        "deadline_ms": 10000,
+        "retain_for_ms": 300000,
+        "payload_digest": "27d30ea971b4b5a6e148168e20a797fba0b0f56d8afad6b48a3ff60b5034191f"
+      },
+      "mac": "5fe7fe6d8fc50f1859a26120b74c82654b9a0c633af1267655318053c2f1d63f"
+    }
+  },
+  "actual_count_wire": {
+    "count": 44,
+    "max_model_len": 1048576,
+    "tokens": [
+      154822,
+      154824,
+      154826,
+      25062,
+      287,
+      29905,
+      371,
+      25,
+      12035,
+      154828,
+      154841,
+      98422,
+      98495,
+      154842,
+      35257,
+      198,
+      154843,
+      69,
+      154847,
+      87,
+      154848,
+      154849,
+      16,
+      154850,
+      154844,
+      1861,
+      23965,
+      1479,
+      350,
+      5965,
+      198,
+      154843,
+      70,
+      154847,
+      88,
+      154848,
+      154849,
+      17,
+      154850,
+      154844,
+      4689,
+      198,
+      154828,
+      154841
+    ],
+    "token_strs": null,
+    "prompt_cache_provenance": {
+      "native_origin_uuid": "d858a998-2daf-47ba-8ca3-62a1ac93a49b",
+      "runtime_profile_digest": "abababababababababababababababababababababababababababababababab",
+      "namespace_digest": "506664117a754624678b886855434f57965fa737cd2352f2d7b75f159f4a2635",
+      "full_prompt_digest": "c88816823308f93d7145db447242d16248cfdb2aa5094cedd414733216854dee",
+      "token_ids_digest": "25b271d92723fc45f77f738412ef69bffd805295a4460b2c853f0e506deccb94",
+      "num_prompt_tokens": 44,
+      "endpoints": [
+        {
+          "endpoint_id": "write:authority-fixture-1",
+          "native_mark_tokens": 25,
+          "native_page_tokens": 0,
+          "native_mark_prefix_digest": "cbc1d9a853b86153c5ac92d6d1f22d02b1d05611bed1f485082291666049c9d9",
+          "native_page_prefix_digest": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+          "native_mark_render_prefix_digest": "27de9d31880284072aa144b080a7d5d61fb1ebadee3f5201311fa3c716896fc4",
+          "native_end_byte": 150
+        },
+        {
+          "endpoint_id": "read:authority-fixture-1",
+          "native_mark_tokens": 25,
+          "native_page_tokens": 0,
+          "native_mark_prefix_digest": "cbc1d9a853b86153c5ac92d6d1f22d02b1d05611bed1f485082291666049c9d9",
+          "native_page_prefix_digest": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+          "native_mark_render_prefix_digest": "27de9d31880284072aa144b080a7d5d61fb1ebadee3f5201311fa3c716896fc4",
+          "native_end_byte": 150
+        },
+        {
+          "endpoint_id": "read:authority-fixture-2",
+          "native_mark_tokens": 15,
+          "native_page_tokens": 0,
+          "native_mark_prefix_digest": "7fc5ec1045c69729fea060987521cbbad8908c4b7ea0b6d4176971bcc8ac25fe",
+          "native_page_prefix_digest": "4f53cda18c2baa0c0354bb5f9a3ecbe5ed12ab4d8e11ba873c2f11161202b945",
+          "native_mark_render_prefix_digest": "253abeb223ac23e874856961422814793fd17b6d79e607e2b2f900b557419512",
+          "native_end_byte": 81
+        }
+      ]
+    },
+    "prompt_cache_authority_proof": {
+      "claims": {
+        "runtime_profile_digest": "abababababababababababababababababababababababababababababababab",
+        "native_request_id": "authority-rid",
+        "authority_revision": 0,
+        "nonce": "cf9ae7487eaa4873986fc5b7274fa9a8a6e8373ec3da91b7c886d2e949fe50c8",
+        "namespace_digest": "506664117a754624678b886855434f57965fa737cd2352f2d7b75f159f4a2635",
+        "native_origin": "http://qualified-worker:8000",
+        "operation_id": "8b0f3c7b5299731ac01c0aff29dadccfcf6f6d6621cc8152ff060e8bdc4a44f8",
+        "retain_for_ms": 300000,
+        "source_digest": "1212121212121212121212121212121212121212121212121212121212121212",
+        "operation": "render",
+        "token_ids_digest": "25b271d92723fc45f77f738412ef69bffd805295a4460b2c853f0e506deccb94",
+        "reservation_id": "",
+        "payload_digest": "2063092a4ae2c835b7e18e1dc515a32cf6d80d2095265c68f03d8a2f5b1e67c4",
+        "model": "candidate-only",
+        "full_render_digest": "c88816823308f93d7145db447242d16248cfdb2aa5094cedd414733216854dee",
+        "request_started_at_ms": 1000,
+        "native_incarnation": "d858a998-2daf-47ba-8ca3-62a1ac93a49b",
+        "issued_at_ms": 2000,
+        "version": 1,
+        "deadline_ms": 10000
+      },
+      "mac": "b9b604568f8ee7996ffc7585bc84c5debee1b3d5455295928d65a595e8fd6ced"
+    }
+  },
+  "generation_engine_cache_salt": "506664117a754624678b886855434f57965fa737cd2352f2d7b75f159f4a2635",
+  "source": "actual Count/HF/parser/common signing functions with bounded CPU engine utility"
+}

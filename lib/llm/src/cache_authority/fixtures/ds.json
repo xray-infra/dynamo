@@ -1,0 +1,26 @@
+{
+  "qualification": "CPU mock NIXL and storage only; not a live receipt",
+  "receipt": {
+    "reservation_id": "reservation-1",
+    "authority_revision": 17,
+    "native_origin_uuid": "native-rid",
+    "runtime_profile_digest": "profile",
+    "namespace_digest": "salt-layout-template",
+    "endpoint_id": "endpoint-A",
+    "native_mark_tokens": 257,
+    "native_page_tokens": 256,
+    "request_started_at_ms": 1000,
+    "expires_at_ms": 301000,
+    "ttl_ms": 300000,
+    "tier": "l3",
+    "retained_tokens": 256,
+    "committed_at_ms": 2000000,
+    "retain_until_ms": 301000,
+    "native_clock_domain": "host65:bootA",
+    "receive_monotonic_ns": 1000000000,
+    "retain_until_monotonic_ns": 301000000000,
+    "ack_retain_for_ms": 300000,
+    "monotonic_event_ns": 1000000000,
+    "pin_receipt_id": "491fd751af810e13db7cb28ff63933b1a7cc1a0384de1e62f7641281cbcd1472"
+  }
+}

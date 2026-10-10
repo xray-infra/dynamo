@@ -1,0 +1,3466 @@
+{
+  "prefill": {
+    "artifact": {
+      "schema_version": 1,
+      "role": "prefill",
+      "model": "zai-org/GLM-5.3",
+      "native_origin": "http://10.90.1.41:28666",
+      "native_incarnation": "4668683f976d40819f1a9db33185314f",
+      "source_digest": "9c23b184ad8a6789b9441e4755e8e791fe11dd450e64d7a09317575734994bf1",
+      "runtime_profile_digest": "9dbd1fdeac78627f937af7899f534870f64302cc6e30883f464d0eee86b3f2c0",
+      "weights_attestation_digest": "6380ea2f8644dabe116a2b67c07e9b381ca212e40c7d33a0acfcee5442aa0324",
+      "kv_compat_digest": "91a25236acfb5a9231fad652f8193964df55b5974ac1d3267b0d161df3ac6541",
+      "qualified_rank_set_digest": "f83f4622916920d498b4269afbced9294f7f0a1858f25919eadde3c64267a834",
+      "ranks": [
+        {
+          "tp_rank": 0,
+          "dcp_rank": 0,
+          "replica_rank": 0
+        },
+        {
+          "tp_rank": 1,
+          "dcp_rank": 0,
+          "replica_rank": 1
+        },
+        {
+          "tp_rank": 2,
+          "dcp_rank": 0,
+          "replica_rank": 2
+        },
+        {
+          "tp_rank": 3,
+          "dcp_rank": 0,
+          "replica_rank": 3
+        },
+        {
+          "tp_rank": 4,
+          "dcp_rank": 0,
+          "replica_rank": 4
+        },
+        {
+          "tp_rank": 5,
+          "dcp_rank": 0,
+          "replica_rank": 5
+        },
+        {
+          "tp_rank": 6,
+          "dcp_rank": 0,
+          "replica_rank": 6
+        },
+        {
+          "tp_rank": 7,
+          "dcp_rank": 0,
+          "replica_rank": 7
+        }
+      ],
+      "prefill_bootstrap_host": "10.90.1.41",
+      "prefill_bootstrap_bind_host": "10.90.1.41",
+      "prefill_bootstrap_port": 8998,
+      "registrations": [
+        {
+          "tp_rank": 0,
+          "dcp_rank": 0,
+          "replica_rank": 0,
+          "native_rank_incarnation": "4668683f976d40819f1a9db33185314f",
+          "pid": 147,
+          "process_start_ticks": 563258984,
+          "boot_id": "c23146c5-bb31-47b7-8c53-b71e88b35fe4"
+        },
+        {
+          "tp_rank": 1,
+          "dcp_rank": 0,
+          "replica_rank": 1,
+          "native_rank_incarnation": "08525f56666d41b786aa5a439273186f",
+          "pid": 148,
+          "process_start_ticks": 563258984,
+          "boot_id": "c23146c5-bb31-47b7-8c53-b71e88b35fe4"
+        },
+        {
+          "tp_rank": 2,
+          "dcp_rank": 0,
+          "replica_rank": 2,
+          "native_rank_incarnation": "0926343c745f48369f7aedfdb24e2880",
+          "pid": 149,
+          "process_start_ticks": 563258984,
+          "boot_id": "c23146c5-bb31-47b7-8c53-b71e88b35fe4"
+        },
+        {
+          "tp_rank": 3,
+          "dcp_rank": 0,
+          "replica_rank": 3,
+          "native_rank_incarnation": "b4cf60dac38144f58375e2f89502d9c1",
+          "pid": 150,
+          "process_start_ticks": 563258984,
+          "boot_id": "c23146c5-bb31-47b7-8c53-b71e88b35fe4"
+        },
+        {
+          "tp_rank": 4,
+          "dcp_rank": 0,
+          "replica_rank": 4,
+          "native_rank_incarnation": "19e20b0a935b4ec8b308dab9b04555ac",
+          "pid": 151,
+          "process_start_ticks": 563258986,
+          "boot_id": "c23146c5-bb31-47b7-8c53-b71e88b35fe4"
+        },
+        {
+          "tp_rank": 5,
+          "dcp_rank": 0,
+          "replica_rank": 5,
+          "native_rank_incarnation": "37b150abf5204a9b8da8aaaabbc6e739",
+          "pid": 152,
+          "process_start_ticks": 563258986,
+          "boot_id": "c23146c5-bb31-47b7-8c53-b71e88b35fe4"
+        },
+        {
+          "tp_rank": 6,
+          "dcp_rank": 0,
+          "replica_rank": 6,
+          "native_rank_incarnation": "cc64d20b653f4f68920744dadca37240",
+          "pid": 153,
+          "process_start_ticks": 563258986,
+          "boot_id": "c23146c5-bb31-47b7-8c53-b71e88b35fe4"
+        },
+        {
+          "tp_rank": 7,
+          "dcp_rank": 0,
+          "replica_rank": 7,
+          "native_rank_incarnation": "28675c7378ca45068257cdb1995bfa14",
+          "pid": 154,
+          "process_start_ticks": 563258986,
+          "boot_id": "c23146c5-bb31-47b7-8c53-b71e88b35fe4"
+        }
+      ],
+      "native_role_registration_digest": "ac9a1ec01bb604fc9742a225e049612d8812642656e47a046d61a85555670135",
+      "kv_compat_descriptor": {
+        "version": 1,
+        "tp_size": 8,
+        "pp_size": 1,
+        "dcp_size": 1,
+        "physical_page": 64,
+        "logical_page": 64,
+        "model_manifest_sha256": "6380ea2f8644dabe116a2b67c07e9b381ca212e40c7d33a0acfcee5442aa0324",
+        "config_sha256": "ece88d79ebdfd7c8d2e61a3f524c1c4174e96877311e12407b65842fcfea2026",
+        "tokenizer_sha256": "12dc94031710b51278b005031863044c85319aa9c8774361b5dcfcdfb5f26f47",
+        "position_sha256": "f554a5ed7925f978279e0f1b542dbf5e2a9513f0bd1ece5ec669561c9a5832e5",
+        "mla_page_nbytes": 41984,
+        "indexer_page_nbytes": 8448,
+        "layout": "layer_first",
+        "kv_format": "torch.uint8",
+        "indexer_format": "torch.uint8",
+        "layer_bitmap": [
+          0,
+          1,
+          2,
+          3,
+          4,
+          5,
+          6,
+          7,
+          8,
+          9,
+          10,
+          11,
+          12,
+          13,
+          14,
+          15,
+          16,
+          17,
+          18,
+          19,
+          20,
+          21,
+          22,
+          23,
+          24,
+          25,
+          26,
+          27,
+          28,
+          29,
+          30,
+          31,
+          32,
+          33,
+          34,
+          35,
+          36,
+          37,
+          38,
+          39,
+          40,
+          41,
+          42,
+          43,
+          44,
+          45,
+          46,
+          47,
+          48,
+          49,
+          50,
+          51,
+          52,
+          53,
+          54,
+          55,
+          56,
+          57,
+          58,
+          59,
+          60,
+          61,
+          62,
+          63,
+          64,
+          65,
+          66,
+          67,
+          68,
+          69,
+          70,
+          71,
+          72,
+          73,
+          74,
+          75,
+          76,
+          77
+        ],
+        "pd_pool_abi": {
+          "pool_class": "DSATokenToKVPool",
+          "page_size": 64,
+          "kv_lora_rank": 512,
+          "qk_rope_head_dim": 64,
+          "index_head_dim": 128,
+          "quant_block_size": 128,
+          "dsa_kv_cache_store_fp8": true,
+          "global_layer_ids": [
+            0,
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7,
+            8,
+            9,
+            10,
+            11,
+            12,
+            13,
+            14,
+            15,
+            16,
+            17,
+            18,
+            19,
+            20,
+            21,
+            22,
+            23,
+            24,
+            25,
+            26,
+            27,
+            28,
+            29,
+            30,
+            31,
+            32,
+            33,
+            34,
+            35,
+            36,
+            37,
+            38,
+            39,
+            40,
+            41,
+            42,
+            43,
+            44,
+            45,
+            46,
+            47,
+            48,
+            49,
+            50,
+            51,
+            52,
+            53,
+            54,
+            55,
+            56,
+            57,
+            58,
+            59,
+            60,
+            61,
+            62,
+            63,
+            64,
+            65,
+            66,
+            67,
+            68,
+            69,
+            70,
+            71,
+            72,
+            73,
+            74,
+            75,
+            76,
+            77
+          ],
+          "index_layer_ids": [
+            0,
+            1,
+            2,
+            6,
+            10,
+            14,
+            18,
+            22,
+            26,
+            30,
+            34,
+            38,
+            42,
+            46,
+            50,
+            54,
+            58,
+            62,
+            66,
+            70,
+            74
+          ],
+          "mla_rows": [
+            {
+              "layer_id": 0,
+              "dtype": "torch.uint8",
+              "shape_tail": [
+                1,
+                656
+              ],
+              "stride": [
+                656,
+                656,
+                1
+              ],
+              "page_nbytes": 41984
+            },
+            {
+              "layer_id": 1,
+              "dtype": "torch.uint8",
+              "shape_tail": [
+                1,
+                656
+              ],
+              "stride": [
+                656,
+                656,
+                1
+              ],
+              "page_nbytes": 41984
+            },
+            {
+              "layer_id": 2,
+              "dtype": "torch.uint8",
+              "shape_tail": [
+                1,
+                656
+              ],
+              "stride": [
+                656,
+                656,
+                1
+              ],
+              "page_nbytes": 41984
+            },
+            {
+              "layer_id": 3,
+              "dtype": "torch.uint8",
+              "shape_tail": [
+                1,
+                656
+              ],
+              "stride": [
+                656,
+                656,
+                1
+              ],
+              "page_nbytes": 41984
+            },
+            {
+              "layer_id": 4,
+              "dtype": "torch.uint8",
+              "shape_tail": [
+                1,
+                656
+              ],
+              "stride": [
+                656,
+                656,
+                1
+              ],
+              "page_nbytes": 41984
+            },
+            {
+              "layer_id": 5,
+              "dtype": "torch.uint8",
+              "shape_tail": [
+                1,
+                656
+              ],
+              "stride": [
+                656,
+                656,
+                1
+              ],
+              "page_nbytes": 41984
+            },
+            {
+              "layer_id": 6,
+              "dtype": "torch.uint8",
+              "shape_tail": [
+                1,
+                656
+              ],
+              "stride": [
+                656,
+                656,
+                1
+              ],
+              "page_nbytes": 41984
+            },
+            {
+              "layer_id": 7,
+              "dtype": "torch.uint8",
+              "shape_tail": [
+                1,
+                656
+              ],
+              "stride": [
+                656,
+                656,
+                1
+              ],
+              "page_nbytes": 41984
+            },
+            {
+              "layer_id": 8,
+              "dtype": "torch.uint8",
+              "shape_tail": [
+                1,
+                656
+              ],
+              "stride": [
+                656,
+                656,
+                1
+              ],
+              "page_nbytes": 41984
+            },
+            {
+              "layer_id": 9,
+              "dtype": "torch.uint8",
+              "shape_tail": [
+                1,
+                656
+              ],
+              "stride": [
+                656,
+                656,
+                1
+              ],
+              "page_nbytes": 41984
+            },
+            {
+              "layer_id": 10,
+              "dtype": "torch.uint8",
+              "shape_tail": [
+                1,
+                656
+              ],
+              "stride": [
+                656,
+                656,
+                1
+              ],
+              "page_nbytes": 41984
+            },
+            {
+              "layer_id": 11,
+              "dtype": "torch.uint8",
+              "shape_tail": [
+                1,
+                656
+              ],
+              "stride": [
+                656,
+                656,
+                1
+              ],
+              "page_nbytes": 41984
+            },
+            {
+              "layer_id": 12,
+              "dtype": "torch.uint8",
+              "shape_tail": [
+                1,
+                656
+              ],
+              "stride": [
+                656,
+                656,
+                1
+              ],
+              "page_nbytes": 41984
+            },
+            {
+              "layer_id": 13,
+              "dtype": "torch.uint8",
+              "shape_tail": [
+                1,
+                656
+              ],
+              "stride": [
+                656,
+                656,
+                1
+              ],
+              "page_nbytes": 41984
+            },
+            {
+              "layer_id": 14,
+              "dtype": "torch.uint8",
+              "shape_tail": [
+                1,
+                656
+              ],
+              "stride": [
+                656,
+                656,
+                1
+              ],
+              "page_nbytes": 41984
+            },
+            {
+              "layer_id": 15,
+              "dtype": "torch.uint8",
+              "shape_tail": [
+                1,
+                656
+              ],
+              "stride": [
+                656,
+                656,
+                1
+              ],
+              "page_nbytes": 41984
+            },
+            {
+              "layer_id": 16,
+              "dtype": "torch.uint8",
+              "shape_tail": [
+                1,
+                656
+              ],
+              "stride": [
+                656,
+                656,
+                1
+              ],
+              "page_nbytes": 41984
+            },
+            {
+              "layer_id": 17,
+              "dtype": "torch.uint8",
+              "shape_tail": [
+                1,
+                656
+              ],
+              "stride": [
+                656,
+                656,
+                1
+              ],
+              "page_nbytes": 41984
+            },
+            {
+              "layer_id": 18,
+              "dtype": "torch.uint8",
+              "shape_tail": [
+                1,
+                656
+              ],
+              "stride": [
+                656,
+                656,
+                1
+              ],
+              "page_nbytes": 41984
+            },
+            {
+              "layer_id": 19,
+              "dtype": "torch.uint8",
+              "shape_tail": [
+                1,
+                656
+              ],
+              "stride": [
+                656,
+                656,
+                1
+              ],
+              "page_nbytes": 41984
+            },
+            {
+              "layer_id": 20,
+              "dtype": "torch.uint8",
+              "shape_tail": [
+                1,
+                656
+              ],
+              "stride": [
+                656,
+                656,
+                1
+              ],
+              "page_nbytes": 41984
+            },
+            {
+              "layer_id": 21,
+              "dtype": "torch.uint8",
+              "shape_tail": [
+                1,
+                656
+              ],
+              "stride": [
+                656,
+                656,
+                1
+              ],
+              "page_nbytes": 41984
+            },
+            {
+              "layer_id": 22,
+              "dtype": "torch.uint8",
+              "shape_tail": [
+                1,
+                656
+              ],
+              "stride": [
+                656,
+                656,
+                1
+              ],
+              "page_nbytes": 41984
+            },
+            {
+              "layer_id": 23,
+              "dtype": "torch.uint8",
+              "shape_tail": [
+                1,
+                656
+              ],
+              "stride": [
+                656,
+                656,
+                1
+              ],
+              "page_nbytes": 41984
+            },
+            {
+              "layer_id": 24,
+              "dtype": "torch.uint8",
+              "shape_tail": [
+                1,
+                656
+              ],
+              "stride": [
+                656,
+                656,
+                1
+              ],
+              "page_nbytes": 41984
+            },
+            {
+              "layer_id": 25,
+              "dtype": "torch.uint8",
+              "shape_tail": [
+                1,
+                656
+              ],
+              "stride": [
+                656,
+                656,
+                1
+              ],
+              "page_nbytes": 41984
+            },
+            {
+              "layer_id": 26,
+              "dtype": "torch.uint8",
+              "shape_tail": [
+                1,
+                656
+              ],
+              "stride": [
+                656,
+                656,
+                1
+              ],
+              "page_nbytes": 41984
+            },
+            {
+              "layer_id": 27,
+              "dtype": "torch.uint8",
+              "shape_tail": [
+                1,
+                656
+              ],
+              "stride": [
+                656,
+                656,
+                1
+              ],
+              "page_nbytes": 41984
+            },
+            {
+              "layer_id": 28,
+              "dtype": "torch.uint8",
+              "shape_tail": [
+                1,
+                656
+              ],
+              "stride": [
+                656,
+                656,
+                1
+              ],
+              "page_nbytes": 41984
+            },
+            {
+              "layer_id": 29,
+              "dtype": "torch.uint8",
+              "shape_tail": [
+                1,
+                656
+              ],
+              "stride": [
+                656,
+                656,
+                1
+              ],
+              "page_nbytes": 41984
+            },
+            {
+              "layer_id": 30,
+              "dtype": "torch.uint8",
+              "shape_tail": [
+                1,
+                656
+              ],
+              "stride": [
+                656,
+                656,
+                1
+              ],
+              "page_nbytes": 41984
+            },
+            {
+              "layer_id": 31,
+              "dtype": "torch.uint8",
+              "shape_tail": [
+                1,
+                656
+              ],
+              "stride": [
+                656,
+                656,
+                1
+              ],
+              "page_nbytes": 41984
+            },
+            {
+              "layer_id": 32,
+              "dtype": "torch.uint8",
+              "shape_tail": [
+                1,
+                656
+              ],
+              "stride": [
+                656,
+                656,
+                1
+              ],
+              "page_nbytes": 41984
+            },
+            {
+              "layer_id": 33,
+              "dtype": "torch.uint8",
+              "shape_tail": [
+                1,
+                656
+              ],
+              "stride": [
+                656,
+                656,
+                1
+              ],
+              "page_nbytes": 41984
+            },
+            {
+              "layer_id": 34,
+              "dtype": "torch.uint8",
+              "shape_tail": [
+                1,
+                656
+              ],
+              "stride": [
+                656,
+                656,
+                1
+              ],
+              "page_nbytes": 41984
+            },
+            {
+              "layer_id": 35,
+              "dtype": "torch.uint8",
+              "shape_tail": [
+                1,
+                656
+              ],
+              "stride": [
+                656,
+                656,
+                1
+              ],
+              "page_nbytes": 41984
+            },
+            {
+              "layer_id": 36,
+              "dtype": "torch.uint8",
+              "shape_tail": [
+                1,
+                656
+              ],
+              "stride": [
+                656,
+                656,
+                1
+              ],
+              "page_nbytes": 41984
+            },
+            {
+              "layer_id": 37,
+              "dtype": "torch.uint8",
+              "shape_tail": [
+                1,
+                656
+              ],
+              "stride": [
+                656,
+                656,
+                1
+              ],
+              "page_nbytes": 41984
+            },
+            {
+              "layer_id": 38,
+              "dtype": "torch.uint8",
+              "shape_tail": [
+                1,
+                656
+              ],
+              "stride": [
+                656,
+                656,
+                1
+              ],
+              "page_nbytes": 41984
+            },
+            {
+              "layer_id": 39,
+              "dtype": "torch.uint8",
+              "shape_tail": [
+                1,
+                656
+              ],
+              "stride": [
+                656,
+                656,
+                1
+              ],
+              "page_nbytes": 41984
+            },
+            {
+              "layer_id": 40,
+              "dtype": "torch.uint8",
+              "shape_tail": [
+                1,
+                656
+              ],
+              "stride": [
+                656,
+                656,
+                1
+              ],
+              "page_nbytes": 41984
+            },
+            {
+              "layer_id": 41,
+              "dtype": "torch.uint8",
+              "shape_tail": [
+                1,
+                656
+              ],
+              "stride": [
+                656,
+                656,
+                1
+              ],
+              "page_nbytes": 41984
+            },
+            {
+              "layer_id": 42,
+              "dtype": "torch.uint8",
+              "shape_tail": [
+                1,
+                656
+              ],
+              "stride": [
+                656,
+                656,
+                1
+              ],
+              "page_nbytes": 41984
+            },
+            {
+              "layer_id": 43,
+              "dtype": "torch.uint8",
+              "shape_tail": [
+                1,
+                656
+              ],
+              "stride": [
+                656,
+                656,
+                1
+              ],
+              "page_nbytes": 41984
+            },
+            {
+              "layer_id": 44,
+              "dtype": "torch.uint8",
+              "shape_tail": [
+                1,
+                656
+              ],
+              "stride": [
+                656,
+                656,
+                1
+              ],
+              "page_nbytes": 41984
+            },
+            {
+              "layer_id": 45,
+              "dtype": "torch.uint8",
+              "shape_tail": [
+                1,
+                656
+              ],
+              "stride": [
+                656,
+                656,
+                1
+              ],
+              "page_nbytes": 41984
+            },
+            {
+              "layer_id": 46,
+              "dtype": "torch.uint8",
+              "shape_tail": [
+                1,
+                656
+              ],
+              "stride": [
+                656,
+                656,
+                1
+              ],
+              "page_nbytes": 41984
+            },
+            {
+              "layer_id": 47,
+              "dtype": "torch.uint8",
+              "shape_tail": [
+                1,
+                656
+              ],
+              "stride": [
+                656,
+                656,
+                1
+              ],
+              "page_nbytes": 41984
+            },
+            {
+              "layer_id": 48,
+              "dtype": "torch.uint8",
+              "shape_tail": [
+                1,
+                656
+              ],
+              "stride": [
+                656,
+                656,
+                1
+              ],
+              "page_nbytes": 41984
+            },
+            {
+              "layer_id": 49,
+              "dtype": "torch.uint8",
+              "shape_tail": [
+                1,
+                656
+              ],
+              "stride": [
+                656,
+                656,
+                1
+              ],
+              "page_nbytes": 41984
+            },
+            {
+              "layer_id": 50,
+              "dtype": "torch.uint8",
+              "shape_tail": [
+                1,
+                656
+              ],
+              "stride": [
+                656,
+                656,
+                1
+              ],
+              "page_nbytes": 41984
+            },
+            {
+              "layer_id": 51,
+              "dtype": "torch.uint8",
+              "shape_tail": [
+                1,
+                656
+              ],
+              "stride": [
+                656,
+                656,
+                1
+              ],
+              "page_nbytes": 41984
+            },
+            {
+              "layer_id": 52,
+              "dtype": "torch.uint8",
+              "shape_tail": [
+                1,
+                656
+              ],
+              "stride": [
+                656,
+                656,
+                1
+              ],
+              "page_nbytes": 41984
+            },
+            {
+              "layer_id": 53,
+              "dtype": "torch.uint8",
+              "shape_tail": [
+                1,
+                656
+              ],
+              "stride": [
+                656,
+                656,
+                1
+              ],
+              "page_nbytes": 41984
+            },
+            {
+              "layer_id": 54,
+              "dtype": "torch.uint8",
+              "shape_tail": [
+                1,
+                656
+              ],
+              "stride": [
+                656,
+                656,
+                1
+              ],
+              "page_nbytes": 41984
+            },
+            {
+              "layer_id": 55,
+              "dtype": "torch.uint8",
+              "shape_tail": [
+                1,
+                656
+              ],
+              "stride": [
+                656,
+                656,
+                1
+              ],
+              "page_nbytes": 41984
+            },
+            {
+              "layer_id": 56,
+              "dtype": "torch.uint8",
+              "shape_tail": [
+                1,
+                656
+              ],
+              "stride": [
+                656,
+                656,
+                1
+              ],
+              "page_nbytes": 41984
+            },
+            {
+              "layer_id": 57,
+              "dtype": "torch.uint8",
+              "shape_tail": [
+                1,
+                656
+              ],
+              "stride": [
+                656,
+                656,
+                1
+              ],
+              "page_nbytes": 41984
+            },
+            {
+              "layer_id": 58,
+              "dtype": "torch.uint8",
+              "shape_tail": [
+                1,
+                656
+              ],
+              "stride": [
+                656,
+                656,
+                1
+              ],
+              "page_nbytes": 41984
+            },
+            {
+              "layer_id": 59,
+              "dtype": "torch.uint8",
+              "shape_tail": [
+                1,
+                656
+              ],
+              "stride": [
+                656,
+                656,
+                1
+              ],
+              "page_nbytes": 41984
+            },
+            {
+              "layer_id": 60,
+              "dtype": "torch.uint8",
+              "shape_tail": [
+                1,
+                656
+              ],
+              "stride": [
+                656,
+                656,
+                1
+              ],
+              "page_nbytes": 41984
+            },
+            {
+              "layer_id": 61,
+              "dtype": "torch.uint8",
+              "shape_tail": [
+                1,
+                656
+              ],
+              "stride": [
+                656,
+                656,
+                1
+              ],
+              "page_nbytes": 41984
+            },
+            {
+              "layer_id": 62,
+              "dtype": "torch.uint8",
+              "shape_tail": [
+                1,
+                656
+              ],
+              "stride": [
+                656,
+                656,
+                1
+              ],
+              "page_nbytes": 41984
+            },
+            {
+              "layer_id": 63,
+              "dtype": "torch.uint8",
+              "shape_tail": [
+                1,
+                656
+              ],
+              "stride": [
+                656,
+                656,
+                1
+              ],
+              "page_nbytes": 41984
+            },
+            {
+              "layer_id": 64,
+              "dtype": "torch.uint8",
+              "shape_tail": [
+                1,
+                656
+              ],
+              "stride": [
+                656,
+                656,
+                1
+              ],
+              "page_nbytes": 41984
+            },
+            {
+              "layer_id": 65,
+              "dtype": "torch.uint8",
+              "shape_tail": [
+                1,
+                656
+              ],
+              "stride": [
+                656,
+                656,
+                1
+              ],
+              "page_nbytes": 41984
+            },
+            {
+              "layer_id": 66,
+              "dtype": "torch.uint8",
+              "shape_tail": [
+                1,
+                656
+              ],
+              "stride": [
+                656,
+                656,
+                1
+              ],
+              "page_nbytes": 41984
+            },
+            {
+              "layer_id": 67,
+              "dtype": "torch.uint8",
+              "shape_tail": [
+                1,
+                656
+              ],
+              "stride": [
+                656,
+                656,
+                1
+              ],
+              "page_nbytes": 41984
+            },
+            {
+              "layer_id": 68,
+              "dtype": "torch.uint8",
+              "shape_tail": [
+                1,
+                656
+              ],
+              "stride": [
+                656,
+                656,
+                1
+              ],
+              "page_nbytes": 41984
+            },
+            {
+              "layer_id": 69,
+              "dtype": "torch.uint8",
+              "shape_tail": [
+                1,
+                656
+              ],
+              "stride": [
+                656,
+                656,
+                1
+              ],
+              "page_nbytes": 41984
+            },
+            {
+              "layer_id": 70,
+              "dtype": "torch.uint8",
+              "shape_tail": [
+                1,
+                656
+              ],
+              "stride": [
+                656,
+                656,
+                1
+              ],
+              "page_nbytes": 41984
+            },
+            {
+              "layer_id": 71,
+              "dtype": "torch.uint8",
+              "shape_tail": [
+                1,
+                656
+              ],
+              "stride": [
+                656,
+                656,
+                1
+              ],
+              "page_nbytes": 41984
+            },
+            {
+              "layer_id": 72,
+              "dtype": "torch.uint8",
+              "shape_tail": [
+                1,
+                656
+              ],
+              "stride": [
+                656,
+                656,
+                1
+              ],
+              "page_nbytes": 41984
+            },
+            {
+              "layer_id": 73,
+              "dtype": "torch.uint8",
+              "shape_tail": [
+                1,
+                656
+              ],
+              "stride": [
+                656,
+                656,
+                1
+              ],
+              "page_nbytes": 41984
+            },
+            {
+              "layer_id": 74,
+              "dtype": "torch.uint8",
+              "shape_tail": [
+                1,
+                656
+              ],
+              "stride": [
+                656,
+                656,
+                1
+              ],
+              "page_nbytes": 41984
+            },
+            {
+              "layer_id": 75,
+              "dtype": "torch.uint8",
+              "shape_tail": [
+                1,
+                656
+              ],
+              "stride": [
+                656,
+                656,
+                1
+              ],
+              "page_nbytes": 41984
+            },
+            {
+              "layer_id": 76,
+              "dtype": "torch.uint8",
+              "shape_tail": [
+                1,
+                656
+              ],
+              "stride": [
+                656,
+                656,
+                1
+              ],
+              "page_nbytes": 41984
+            },
+            {
+              "layer_id": 77,
+              "dtype": "torch.uint8",
+              "shape_tail": [
+                1,
+                656
+              ],
+              "stride": [
+                656,
+                656,
+                1
+              ],
+              "page_nbytes": 41984
+            }
+          ],
+          "index_rows": [
+            {
+              "layer_id": 0,
+              "dtype": "torch.uint8",
+              "shape_tail": [
+                8448
+              ],
+              "stride": [
+                8448,
+                1
+              ],
+              "page_nbytes": 8448
+            },
+            {
+              "layer_id": 1,
+              "dtype": "torch.uint8",
+              "shape_tail": [
+                8448
+              ],
+              "stride": [
+                8448,
+                1
+              ],
+              "page_nbytes": 8448
+            },
+            {
+              "layer_id": 2,
+              "dtype": "torch.uint8",
+              "shape_tail": [
+                8448
+              ],
+              "stride": [
+                8448,
+                1
+              ],
+              "page_nbytes": 8448
+            },
+            {
+              "layer_id": 6,
+              "dtype": "torch.uint8",
+              "shape_tail": [
+                8448
+              ],
+              "stride": [
+                8448,
+                1
+              ],
+              "page_nbytes": 8448
+            },
+            {
+              "layer_id": 10,
+              "dtype": "torch.uint8",
+              "shape_tail": [
+                8448
+              ],
+              "stride": [
+                8448,
+                1
+              ],
+              "page_nbytes": 8448
+            },
+            {
+              "layer_id": 14,
+              "dtype": "torch.uint8",
+              "shape_tail": [
+                8448
+              ],
+              "stride": [
+                8448,
+                1
+              ],
+              "page_nbytes": 8448
+            },
+            {
+              "layer_id": 18,
+              "dtype": "torch.uint8",
+              "shape_tail": [
+                8448
+              ],
+              "stride": [
+                8448,
+                1
+              ],
+              "page_nbytes": 8448
+            },
+            {
+              "layer_id": 22,
+              "dtype": "torch.uint8",
+              "shape_tail": [
+                8448
+              ],
+              "stride": [
+                8448,
+                1
+              ],
+              "page_nbytes": 8448
+            },
+            {
+              "layer_id": 26,
+              "dtype": "torch.uint8",
+              "shape_tail": [
+                8448
+              ],
+              "stride": [
+                8448,
+                1
+              ],
+              "page_nbytes": 8448
+            },
+            {
+              "layer_id": 30,
+              "dtype": "torch.uint8",
+              "shape_tail": [
+                8448
+              ],
+              "stride": [
+                8448,
+                1
+              ],
+              "page_nbytes": 8448
+            },
+            {
+              "layer_id": 34,
+              "dtype": "torch.uint8",
+              "shape_tail": [
+                8448
+              ],
+              "stride": [
+                8448,
+                1
+              ],
+              "page_nbytes": 8448
+            },
+            {
+              "layer_id": 38,
+              "dtype": "torch.uint8",
+              "shape_tail": [
+                8448
+              ],
+              "stride": [
+                8448,
+                1
+              ],
+              "page_nbytes": 8448
+            },
+            {
+              "layer_id": 42,
+              "dtype": "torch.uint8",
+              "shape_tail": [
+                8448
+              ],
+              "stride": [
+                8448,
+                1
+              ],
+              "page_nbytes": 8448
+            },
+            {
+              "layer_id": 46,
+              "dtype": "torch.uint8",
+              "shape_tail": [
+                8448
+              ],
+              "stride": [
+                8448,
+                1
+              ],
+              "page_nbytes": 8448
+            },
+            {
+              "layer_id": 50,
+              "dtype": "torch.uint8",
+              "shape_tail": [
+                8448
+              ],
+              "stride": [
+                8448,
+                1
+              ],
+              "page_nbytes": 8448
+            },
+            {
+              "layer_id": 54,
+              "dtype": "torch.uint8",
+              "shape_tail": [
+                8448
+              ],
+              "stride": [
+                8448,
+                1
+              ],
+              "page_nbytes": 8448
+            },
+            {
+              "layer_id": 58,
+              "dtype": "torch.uint8",
+              "shape_tail": [
+                8448
+              ],
+              "stride": [
+                8448,
+                1
+              ],
+              "page_nbytes": 8448
+            },
+            {
+              "layer_id": 62,
+              "dtype": "torch.uint8",
+              "shape_tail": [
+                8448
+              ],
+              "stride": [
+                8448,
+                1
+              ],
+              "page_nbytes": 8448
+            },
+            {
+              "layer_id": 66,
+              "dtype": "torch.uint8",
+              "shape_tail": [
+                8448
+              ],
+              "stride": [
+                8448,
+                1
+              ],
+              "page_nbytes": 8448
+            },
+            {
+              "layer_id": 70,
+              "dtype": "torch.uint8",
+              "shape_tail": [
+                8448
+              ],
+              "stride": [
+                8448,
+                1
+              ],
+              "page_nbytes": 8448
+            },
+            {
+              "layer_id": 74,
+              "dtype": "torch.uint8",
+              "shape_tail": [
+                8448
+              ],
+              "stride": [
+                8448,
+                1
+              ],
+              "page_nbytes": 8448
+            }
+          ],
+          "dsa_model_layer_map": {
+            "active_layer_ids": [
+              0,
+              1,
+              2,
+              6,
+              10,
+              14,
+              18,
+              22,
+              26,
+              30,
+              34,
+              38,
+              42,
+              46,
+              50,
+              54,
+              58,
+              62,
+              66,
+              70,
+              74
+            ],
+            "config_sha256": "ece88d79ebdfd7c8d2e61a3f524c1c4174e96877311e12407b65842fcfea2026",
+            "declaration": {
+              "architectures": [
+                "GlmMoeDsaForCausalLM"
+              ],
+              "cli_factor": null,
+              "index_skip_topk_offset": 3,
+              "index_topk": 2048,
+              "index_topk_freq": 4,
+              "index_topk_pattern": null,
+              "model_type": "glm_moe_dsa"
+            },
+            "num_hidden_layers": 78
+          }
+        },
+        "attn_tp_size": 2,
+        "attn_cp_size": 4
+      }
+    },
+    "qualified": true
+  },
+  "decode": {
+    "artifact": {
+      "schema_version": 1,
+      "role": "decode",
+      "model": "zai-org/GLM-5.3",
+      "native_origin": "http://10.90.1.42:28666",
+      "native_incarnation": "dbab69f21f7c4f90b7bef83a233306d8",
+      "source_digest": "9c23b184ad8a6789b9441e4755e8e791fe11dd450e64d7a09317575734994bf1",
+      "runtime_profile_digest": "01d918345811f7a69129e943e3bdd06c0ede9b2989c1f0395db5f8b11133f91d",
+      "weights_attestation_digest": "6380ea2f8644dabe116a2b67c07e9b381ca212e40c7d33a0acfcee5442aa0324",
+      "kv_compat_digest": "3617ca04276477d6561a0ef1ac90a8acb7fac39570e9fada65068a4b6de9a9a8",
+      "qualified_rank_set_digest": "a35dd45c376a0e2c63096c27b7553e4c5bd22cbcf92f19bca0e3dd18d403c483",
+      "ranks": [
+        {
+          "tp_rank": 0,
+          "dcp_rank": 0,
+          "replica_rank": 0
+        },
+        {
+          "tp_rank": 1,
+          "dcp_rank": 1,
+          "replica_rank": 0
+        },
+        {
+          "tp_rank": 2,
+          "dcp_rank": 2,
+          "replica_rank": 0
+        },
+        {
+          "tp_rank": 3,
+          "dcp_rank": 3,
+          "replica_rank": 0
+        },
+        {
+          "tp_rank": 4,
+          "dcp_rank": 0,
+          "replica_rank": 1
+        },
+        {
+          "tp_rank": 5,
+          "dcp_rank": 1,
+          "replica_rank": 1
+        },
+        {
+          "tp_rank": 6,
+          "dcp_rank": 2,
+          "replica_rank": 1
+        },
+        {
+          "tp_rank": 7,
+          "dcp_rank": 3,
+          "replica_rank": 1
+        }
+      ],
+      "prefill_bootstrap_host": null,
+      "prefill_bootstrap_bind_host": null,
+      "prefill_bootstrap_port": null,
+      "registrations": [
+        {
+          "tp_rank": 0,
+          "dcp_rank": 0,
+          "replica_rank": 0,
+          "native_rank_incarnation": "dbab69f21f7c4f90b7bef83a233306d8",
+          "pid": 147,
+          "process_start_ticks": 563153940,
+          "boot_id": "ec8050ae-a720-4b3f-a1a6-cc6c1556fe86"
+        },
+        {
+          "tp_rank": 1,
+          "dcp_rank": 1,
+          "replica_rank": 0,
+          "native_rank_incarnation": "3a9fe000b68849f5920449b711c72d20",
+          "pid": 148,
+          "process_start_ticks": 563153940,
+          "boot_id": "ec8050ae-a720-4b3f-a1a6-cc6c1556fe86"
+        },
+        {
+          "tp_rank": 2,
+          "dcp_rank": 2,
+          "replica_rank": 0,
+          "native_rank_incarnation": "f8a13898fcd44feeb732db551cf24c44",
+          "pid": 149,
+          "process_start_ticks": 563153940,
+          "boot_id": "ec8050ae-a720-4b3f-a1a6-cc6c1556fe86"
+        },
+        {
+          "tp_rank": 3,
+          "dcp_rank": 3,
+          "replica_rank": 0,
+          "native_rank_incarnation": "747cd6368d3c49ab91338dd9d17b08bb",
+          "pid": 150,
+          "process_start_ticks": 563153941,
+          "boot_id": "ec8050ae-a720-4b3f-a1a6-cc6c1556fe86"
+        },
+        {
+          "tp_rank": 4,
+          "dcp_rank": 0,
+          "replica_rank": 1,
+          "native_rank_incarnation": "77104c1e8c594d5eb161e13a71915b8c",
+          "pid": 151,
+          "process_start_ticks": 563153942,
+          "boot_id": "ec8050ae-a720-4b3f-a1a6-cc6c1556fe86"
+        },
+        {
+          "tp_rank": 5,
+          "dcp_rank": 1,
+          "replica_rank": 1,
+          "native_rank_incarnation": "043e0fa6f40344409ee167e1a916679e",
+          "pid": 152,
+          "process_start_ticks": 563153942,
+          "boot_id": "ec8050ae-a720-4b3f-a1a6-cc6c1556fe86"
+        },
+        {
+          "tp_rank": 6,
+          "dcp_rank": 2,
+          "replica_rank": 1,
+          "native_rank_incarnation": "83b7202bd82b44029954bdb5f365c46f",
+          "pid": 153,
+          "process_start_ticks": 563153942,
+          "boot_id": "ec8050ae-a720-4b3f-a1a6-cc6c1556fe86"
+        },
+        {
+          "tp_rank": 7,
+          "dcp_rank": 3,
+          "replica_rank": 1,
+          "native_rank_incarnation": "07b801f2764b446d9dfbd89bce97c7bf",
+          "pid": 154,
+          "process_start_ticks": 563153942,
+          "boot_id": "ec8050ae-a720-4b3f-a1a6-cc6c1556fe86"
+        }
+      ],
+      "native_role_registration_digest": "e5be4991e5e15aac825774d98ef593122bd9fd717797ca8763ec0421983d1463",
+      "kv_compat_descriptor": {
+        "version": 1,
+        "tp_size": 8,
+        "pp_size": 1,
+        "dcp_size": 4,
+        "physical_page": 64,
+        "logical_page": 256,
+        "model_manifest_sha256": "6380ea2f8644dabe116a2b67c07e9b381ca212e40c7d33a0acfcee5442aa0324",
+        "config_sha256": "ece88d79ebdfd7c8d2e61a3f524c1c4174e96877311e12407b65842fcfea2026",
+        "tokenizer_sha256": "12dc94031710b51278b005031863044c85319aa9c8774361b5dcfcdfb5f26f47",
+        "position_sha256": "f554a5ed7925f978279e0f1b542dbf5e2a9513f0bd1ece5ec669561c9a5832e5",
+        "mla_page_nbytes": 41984,
+        "indexer_page_nbytes": 8448,
+        "layout": "layer_first",
+        "kv_format": "torch.uint8",
+        "indexer_format": "torch.uint8",
+        "layer_bitmap": [
+          0,
+          1,
+          2,
+          3,
+          4,
+          5,
+          6,
+          7,
+          8,
+          9,
+          10,
+          11,
+          12,
+          13,
+          14,
+          15,
+          16,
+          17,
+          18,
+          19,
+          20,
+          21,
+          22,
+          23,
+          24,
+          25,
+          26,
+          27,
+          28,
+          29,
+          30,
+          31,
+          32,
+          33,
+          34,
+          35,
+          36,
+          37,
+          38,
+          39,
+          40,
+          41,
+          42,
+          43,
+          44,
+          45,
+          46,
+          47,
+          48,
+          49,
+          50,
+          51,
+          52,
+          53,
+          54,
+          55,
+          56,
+          57,
+          58,
+          59,
+          60,
+          61,
+          62,
+          63,
+          64,
+          65,
+          66,
+          67,
+          68,
+          69,
+          70,
+          71,
+          72,
+          73,
+          74,
+          75,
+          76,
+          77
+        ],
+        "pd_pool_abi": {
+          "pool_class": "DSATokenToKVPool",
+          "page_size": 64,
+          "kv_lora_rank": 512,
+          "qk_rope_head_dim": 64,
+          "index_head_dim": 128,
+          "quant_block_size": 128,
+          "dsa_kv_cache_store_fp8": true,
+          "global_layer_ids": [
+            0,
+            1,
+            2,
+            3,
+            4,
+            5,
+            6,
+            7,
+            8,
+            9,
+            10,
+            11,
+            12,
+            13,
+            14,
+            15,
+            16,
+            17,
+            18,
+            19,
+            20,
+            21,
+            22,
+            23,
+            24,
+            25,
+            26,
+            27,
+            28,
+            29,
+            30,
+            31,
+            32,
+            33,
+            34,
+            35,
+            36,
+            37,
+            38,
+            39,
+            40,
+            41,
+            42,
+            43,
+            44,
+            45,
+            46,
+            47,
+            48,
+            49,
+            50,
+            51,
+            52,
+            53,
+            54,
+            55,
+            56,
+            57,
+            58,
+            59,
+            60,
+            61,
+            62,
+            63,
+            64,
+            65,
+            66,
+            67,
+            68,
+            69,
+            70,
+            71,
+            72,
+            73,
+            74,
+            75,
+            76,
+            77
+          ],
+          "index_layer_ids": [
+            0,
+            1,
+            2,
+            6,
+            10,
+            14,
+            18,
+            22,
+            26,
+            30,
+            34,
+            38,
+            42,
+            46,
+            50,
+            54,
+            58,
+            62,
+            66,
+            70,
+            74
+          ],
+          "mla_rows": [
+            {
+              "layer_id": 0,
+              "dtype": "torch.uint8",
+              "shape_tail": [
+                1,
+                656
+              ],
+              "stride": [
+                656,
+                656,
+                1
+              ],
+              "page_nbytes": 41984
+            },
+            {
+              "layer_id": 1,
+              "dtype": "torch.uint8",
+              "shape_tail": [
+                1,
+                656
+              ],
+              "stride": [
+                656,
+                656,
+                1
+              ],
+              "page_nbytes": 41984
+            },
+            {
+              "layer_id": 2,
+              "dtype": "torch.uint8",
+              "shape_tail": [
+                1,
+                656
+              ],
+              "stride": [
+                656,
+                656,
+                1
+              ],
+              "page_nbytes": 41984
+            },
+            {
+              "layer_id": 3,
+              "dtype": "torch.uint8",
+              "shape_tail": [
+                1,
+                656
+              ],
+              "stride": [
+                656,
+                656,
+                1
+              ],
+              "page_nbytes": 41984
+            },
+            {
+              "layer_id": 4,
+              "dtype": "torch.uint8",
+              "shape_tail": [
+                1,
+                656
+              ],
+              "stride": [
+                656,
+                656,
+                1
+              ],
+              "page_nbytes": 41984
+            },
+            {
+              "layer_id": 5,
+              "dtype": "torch.uint8",
+              "shape_tail": [
+                1,
+                656
+              ],
+              "stride": [
+                656,
+                656,
+                1
+              ],
+              "page_nbytes": 41984
+            },
+            {
+              "layer_id": 6,
+              "dtype": "torch.uint8",
+              "shape_tail": [
+                1,
+                656
+              ],
+              "stride": [
+                656,
+                656,
+                1
+              ],
+              "page_nbytes": 41984
+            },
+            {
+              "layer_id": 7,
+              "dtype": "torch.uint8",
+              "shape_tail": [
+                1,
+                656
+              ],
+              "stride": [
+                656,
+                656,
+                1
+              ],
+              "page_nbytes": 41984
+            },
+            {
+              "layer_id": 8,
+              "dtype": "torch.uint8",
+              "shape_tail": [
+                1,
+                656
+              ],
+              "stride": [
+                656,
+                656,
+                1
+              ],
+              "page_nbytes": 41984
+            },
+            {
+              "layer_id": 9,
+              "dtype": "torch.uint8",
+              "shape_tail": [
+                1,
+                656
+              ],
+              "stride": [
+                656,
+                656,
+                1
+              ],
+              "page_nbytes": 41984
+            },
+            {
+              "layer_id": 10,
+              "dtype": "torch.uint8",
+              "shape_tail": [
+                1,
+                656
+              ],
+              "stride": [
+                656,
+                656,
+                1
+              ],
+              "page_nbytes": 41984
+            },
+            {
+              "layer_id": 11,
+              "dtype": "torch.uint8",
+              "shape_tail": [
+                1,
+                656
+              ],
+              "stride": [
+                656,
+                656,
+                1
+              ],
+              "page_nbytes": 41984
+            },
+            {
+              "layer_id": 12,
+              "dtype": "torch.uint8",
+              "shape_tail": [
+                1,
+                656
+              ],
+              "stride": [
+                656,
+                656,
+                1
+              ],
+              "page_nbytes": 41984
+            },
+            {
+              "layer_id": 13,
+              "dtype": "torch.uint8",
+              "shape_tail": [
+                1,
+                656
+              ],
+              "stride": [
+                656,
+                656,
+                1
+              ],
+              "page_nbytes": 41984
+            },
+            {
+              "layer_id": 14,
+              "dtype": "torch.uint8",
+              "shape_tail": [
+                1,
+                656
+              ],
+              "stride": [
+                656,
+                656,
+                1
+              ],
+              "page_nbytes": 41984
+            },
+            {
+              "layer_id": 15,
+              "dtype": "torch.uint8",
+              "shape_tail": [
+                1,
+                656
+              ],
+              "stride": [
+                656,
+                656,
+                1
+              ],
+              "page_nbytes": 41984
+            },
+            {
+              "layer_id": 16,
+              "dtype": "torch.uint8",
+              "shape_tail": [
+                1,
+                656
+              ],
+              "stride": [
+                656,
+                656,
+                1
+              ],
+              "page_nbytes": 41984
+            },
+            {
+              "layer_id": 17,
+              "dtype": "torch.uint8",
+              "shape_tail": [
+                1,
+                656
+              ],
+              "stride": [
+                656,
+                656,
+                1
+              ],
+              "page_nbytes": 41984
+            },
+            {
+              "layer_id": 18,
+              "dtype": "torch.uint8",
+              "shape_tail": [
+                1,
+                656
+              ],
+              "stride": [
+                656,
+                656,
+                1
+              ],
+              "page_nbytes": 41984
+            },
+            {
+              "layer_id": 19,
+              "dtype": "torch.uint8",
+              "shape_tail": [
+                1,
+                656
+              ],
+              "stride": [
+                656,
+                656,
+                1
+              ],
+              "page_nbytes": 41984
+            },
+            {
+              "layer_id": 20,
+              "dtype": "torch.uint8",
+              "shape_tail": [
+                1,
+                656
+              ],
+              "stride": [
+                656,
+                656,
+                1
+              ],
+              "page_nbytes": 41984
+            },
+            {
+              "layer_id": 21,
+              "dtype": "torch.uint8",
+              "shape_tail": [
+                1,
+                656
+              ],
+              "stride": [
+                656,
+                656,
+                1
+              ],
+              "page_nbytes": 41984
+            },
+            {
+              "layer_id": 22,
+              "dtype": "torch.uint8",
+              "shape_tail": [
+                1,
+                656
+              ],
+              "stride": [
+                656,
+                656,
+                1
+              ],
+              "page_nbytes": 41984
+            },
+            {
+              "layer_id": 23,
+              "dtype": "torch.uint8",
+              "shape_tail": [
+                1,
+                656
+              ],
+              "stride": [
+                656,
+                656,
+                1
+              ],
+              "page_nbytes": 41984
+            },
+            {
+              "layer_id": 24,
+              "dtype": "torch.uint8",
+              "shape_tail": [
+                1,
+                656
+              ],
+              "stride": [
+                656,
+                656,
+                1
+              ],
+              "page_nbytes": 41984
+            },
+            {
+              "layer_id": 25,
+              "dtype": "torch.uint8",
+              "shape_tail": [
+                1,
+                656
+              ],
+              "stride": [
+                656,
+                656,
+                1
+              ],
+              "page_nbytes": 41984
+            },
+            {
+              "layer_id": 26,
+              "dtype": "torch.uint8",
+              "shape_tail": [
+                1,
+                656
+              ],
+              "stride": [
+                656,
+                656,
+                1
+              ],
+              "page_nbytes": 41984
+            },
+            {
+              "layer_id": 27,
+              "dtype": "torch.uint8",
+              "shape_tail": [
+                1,
+                656
+              ],
+              "stride": [
+                656,
+                656,
+                1
+              ],
+              "page_nbytes": 41984
+            },
+            {
+              "layer_id": 28,
+              "dtype": "torch.uint8",
+              "shape_tail": [
+                1,
+                656
+              ],
+              "stride": [
+                656,
+                656,
+                1
+              ],
+              "page_nbytes": 41984
+            },
+            {
+              "layer_id": 29,
+              "dtype": "torch.uint8",
+              "shape_tail": [
+                1,
+                656
+              ],
+              "stride": [
+                656,
+                656,
+                1
+              ],
+              "page_nbytes": 41984
+            },
+            {
+              "layer_id": 30,
+              "dtype": "torch.uint8",
+              "shape_tail": [
+                1,
+                656
+              ],
+              "stride": [
+                656,
+                656,
+                1
+              ],
+              "page_nbytes": 41984
+            },
+            {
+              "layer_id": 31,
+              "dtype": "torch.uint8",
+              "shape_tail": [
+                1,
+                656
+              ],
+              "stride": [
+                656,
+                656,
+                1
+              ],
+              "page_nbytes": 41984
+            },
+            {
+              "layer_id": 32,
+              "dtype": "torch.uint8",
+              "shape_tail": [
+                1,
+                656
+              ],
+              "stride": [
+                656,
+                656,
+                1
+              ],
+              "page_nbytes": 41984
+            },
+            {
+              "layer_id": 33,
+              "dtype": "torch.uint8",
+              "shape_tail": [
+                1,
+                656
+              ],
+              "stride": [
+                656,
+                656,
+                1
+              ],
+              "page_nbytes": 41984
+            },
+            {
+              "layer_id": 34,
+              "dtype": "torch.uint8",
+              "shape_tail": [
+                1,
+                656
+              ],
+              "stride": [
+                656,
+                656,
+                1
+              ],
+              "page_nbytes": 41984
+            },
+            {
+              "layer_id": 35,
+              "dtype": "torch.uint8",
+              "shape_tail": [
+                1,
+                656
+              ],
+              "stride": [
+                656,
+                656,
+                1
+              ],
+              "page_nbytes": 41984
+            },
+            {
+              "layer_id": 36,
+              "dtype": "torch.uint8",
+              "shape_tail": [
+                1,
+                656
+              ],
+              "stride": [
+                656,
+                656,
+                1
+              ],
+              "page_nbytes": 41984
+            },
+            {
+              "layer_id": 37,
+              "dtype": "torch.uint8",
+              "shape_tail": [
+                1,
+                656
+              ],
+              "stride": [
+                656,
+                656,
+                1
+              ],
+              "page_nbytes": 41984
+            },
+            {
+              "layer_id": 38,
+              "dtype": "torch.uint8",
+              "shape_tail": [
+                1,
+                656
+              ],
+              "stride": [
+                656,
+                656,
+                1
+              ],
+              "page_nbytes": 41984
+            },
+            {
+              "layer_id": 39,
+              "dtype": "torch.uint8",
+              "shape_tail": [
+                1,
+                656
+              ],
+              "stride": [
+                656,
+                656,
+                1
+              ],
+              "page_nbytes": 41984
+            },
+            {
+              "layer_id": 40,
+              "dtype": "torch.uint8",
+              "shape_tail": [
+                1,
+                656
+              ],
+              "stride": [
+                656,
+                656,
+                1
+              ],
+              "page_nbytes": 41984
+            },
+            {
+              "layer_id": 41,
+              "dtype": "torch.uint8",
+              "shape_tail": [
+                1,
+                656
+              ],
+              "stride": [
+                656,
+                656,
+                1
+              ],
+              "page_nbytes": 41984
+            },
+            {
+              "layer_id": 42,
+              "dtype": "torch.uint8",
+              "shape_tail": [
+                1,
+                656
+              ],
+              "stride": [
+                656,
+                656,
+                1
+              ],
+              "page_nbytes": 41984
+            },
+            {
+              "layer_id": 43,
+              "dtype": "torch.uint8",
+              "shape_tail": [
+                1,
+                656
+              ],
+              "stride": [
+                656,
+                656,
+                1
+              ],
+              "page_nbytes": 41984
+            },
+            {
+              "layer_id": 44,
+              "dtype": "torch.uint8",
+              "shape_tail": [
+                1,
+                656
+              ],
+              "stride": [
+                656,
+                656,
+                1
+              ],
+              "page_nbytes": 41984
+            },
+            {
+              "layer_id": 45,
+              "dtype": "torch.uint8",
+              "shape_tail": [
+                1,
+                656
+              ],
+              "stride": [
+                656,
+                656,
+                1
+              ],
+              "page_nbytes": 41984
+            },
+            {
+              "layer_id": 46,
+              "dtype": "torch.uint8",
+              "shape_tail": [
+                1,
+                656
+              ],
+              "stride": [
+                656,
+                656,
+                1
+              ],
+              "page_nbytes": 41984
+            },
+            {
+              "layer_id": 47,
+              "dtype": "torch.uint8",
+              "shape_tail": [
+                1,
+                656
+              ],
+              "stride": [
+                656,
+                656,
+                1
+              ],
+              "page_nbytes": 41984
+            },
+            {
+              "layer_id": 48,
+              "dtype": "torch.uint8",
+              "shape_tail": [
+                1,
+                656
+              ],
+              "stride": [
+                656,
+                656,
+                1
+              ],
+              "page_nbytes": 41984
+            },
+            {
+              "layer_id": 49,
+              "dtype": "torch.uint8",
+              "shape_tail": [
+                1,
+                656
+              ],
+              "stride": [
+                656,
+                656,
+                1
+              ],
+              "page_nbytes": 41984
+            },
+            {
+              "layer_id": 50,
+              "dtype": "torch.uint8",
+              "shape_tail": [
+                1,
+                656
+              ],
+              "stride": [
+                656,
+                656,
+                1
+              ],
+              "page_nbytes": 41984
+            },
+            {
+              "layer_id": 51,
+              "dtype": "torch.uint8",
+              "shape_tail": [
+                1,
+                656
+              ],
+              "stride": [
+                656,
+                656,
+                1
+              ],
+              "page_nbytes": 41984
+            },
+            {
+              "layer_id": 52,
+              "dtype": "torch.uint8",
+              "shape_tail": [
+                1,
+                656
+              ],
+              "stride": [
+                656,
+                656,
+                1
+              ],
+              "page_nbytes": 41984
+            },
+            {
+              "layer_id": 53,
+              "dtype": "torch.uint8",
+              "shape_tail": [
+                1,
+                656
+              ],
+              "stride": [
+                656,
+                656,
+                1
+              ],
+              "page_nbytes": 41984
+            },
+            {
+              "layer_id": 54,
+              "dtype": "torch.uint8",
+              "shape_tail": [
+                1,
+                656
+              ],
+              "stride": [
+                656,
+                656,
+                1
+              ],
+              "page_nbytes": 41984
+            },
+            {
+              "layer_id": 55,
+              "dtype": "torch.uint8",
+              "shape_tail": [
+                1,
+                656
+              ],
+              "stride": [
+                656,
+                656,
+                1
+              ],
+              "page_nbytes": 41984
+            },
+            {
+              "layer_id": 56,
+              "dtype": "torch.uint8",
+              "shape_tail": [
+                1,
+                656
+              ],
+              "stride": [
+                656,
+                656,
+                1
+              ],
+              "page_nbytes": 41984
+            },
+            {
+              "layer_id": 57,
+              "dtype": "torch.uint8",
+              "shape_tail": [
+                1,
+                656
+              ],
+              "stride": [
+                656,
+                656,
+                1
+              ],
+              "page_nbytes": 41984
+            },
+            {
+              "layer_id": 58,
+              "dtype": "torch.uint8",
+              "shape_tail": [
+                1,
+                656
+              ],
+              "stride": [
+                656,
+                656,
+                1
+              ],
+              "page_nbytes": 41984
+            },
+            {
+              "layer_id": 59,
+              "dtype": "torch.uint8",
+              "shape_tail": [
+                1,
+                656
+              ],
+              "stride": [
+                656,
+                656,
+                1
+              ],
+              "page_nbytes": 41984
+            },
+            {
+              "layer_id": 60,
+              "dtype": "torch.uint8",
+              "shape_tail": [
+                1,
+                656
+              ],
+              "stride": [
+                656,
+                656,
+                1
+              ],
+              "page_nbytes": 41984
+            },
+            {
+              "layer_id": 61,
+              "dtype": "torch.uint8",
+              "shape_tail": [
+                1,
+                656
+              ],
+              "stride": [
+                656,
+                656,
+                1
+              ],
+              "page_nbytes": 41984
+            },
+            {
+              "layer_id": 62,
+              "dtype": "torch.uint8",
+              "shape_tail": [
+                1,
+                656
+              ],
+              "stride": [
+                656,
+                656,
+                1
+              ],
+              "page_nbytes": 41984
+            },
+            {
+              "layer_id": 63,
+              "dtype": "torch.uint8",
+              "shape_tail": [
+                1,
+                656
+              ],
+              "stride": [
+                656,
+                656,
+                1
+              ],
+              "page_nbytes": 41984
+            },
+            {
+              "layer_id": 64,
+              "dtype": "torch.uint8",
+              "shape_tail": [
+                1,
+                656
+              ],
+              "stride": [
+                656,
+                656,
+                1
+              ],
+              "page_nbytes": 41984
+            },
+            {
+              "layer_id": 65,
+              "dtype": "torch.uint8",
+              "shape_tail": [
+                1,
+                656
+              ],
+              "stride": [
+                656,
+                656,
+                1
+              ],
+              "page_nbytes": 41984
+            },
+            {
+              "layer_id": 66,
+              "dtype": "torch.uint8",
+              "shape_tail": [
+                1,
+                656
+              ],
+              "stride": [
+                656,
+                656,
+                1
+              ],
+              "page_nbytes": 41984
+            },
+            {
+              "layer_id": 67,
+              "dtype": "torch.uint8",
+              "shape_tail": [
+                1,
+                656
+              ],
+              "stride": [
+                656,
+                656,
+                1
+              ],
+              "page_nbytes": 41984
+            },
+            {
+              "layer_id": 68,
+              "dtype": "torch.uint8",
+              "shape_tail": [
+                1,
+                656
+              ],
+              "stride": [
+                656,
+                656,
+                1
+              ],
+              "page_nbytes": 41984
+            },
+            {
+              "layer_id": 69,
+              "dtype": "torch.uint8",
+              "shape_tail": [
+                1,
+                656
+              ],
+              "stride": [
+                656,
+                656,
+                1
+              ],
+              "page_nbytes": 41984
+            },
+            {
+              "layer_id": 70,
+              "dtype": "torch.uint8",
+              "shape_tail": [
+                1,
+                656
+              ],
+              "stride": [
+                656,
+                656,
+                1
+              ],
+              "page_nbytes": 41984
+            },
+            {
+              "layer_id": 71,
+              "dtype": "torch.uint8",
+              "shape_tail": [
+                1,
+                656
+              ],
+              "stride": [
+                656,
+                656,
+                1
+              ],
+              "page_nbytes": 41984
+            },
+            {
+              "layer_id": 72,
+              "dtype": "torch.uint8",
+              "shape_tail": [
+                1,
+                656
+              ],
+              "stride": [
+                656,
+                656,
+                1
+              ],
+              "page_nbytes": 41984
+            },
+            {
+              "layer_id": 73,
+              "dtype": "torch.uint8",
+              "shape_tail": [
+                1,
+                656
+              ],
+              "stride": [
+                656,
+                656,
+                1
+              ],
+              "page_nbytes": 41984
+            },
+            {
+              "layer_id": 74,
+              "dtype": "torch.uint8",
+              "shape_tail": [
+                1,
+                656
+              ],
+              "stride": [
+                656,
+                656,
+                1
+              ],
+              "page_nbytes": 41984
+            },
+            {
+              "layer_id": 75,
+              "dtype": "torch.uint8",
+              "shape_tail": [
+                1,
+                656
+              ],
+              "stride": [
+                656,
+                656,
+                1
+              ],
+              "page_nbytes": 41984
+            },
+            {
+              "layer_id": 76,
+              "dtype": "torch.uint8",
+              "shape_tail": [
+                1,
+                656
+              ],
+              "stride": [
+                656,
+                656,
+                1
+              ],
+              "page_nbytes": 41984
+            },
+            {
+              "layer_id": 77,
+              "dtype": "torch.uint8",
+              "shape_tail": [
+                1,
+                656
+              ],
+              "stride": [
+                656,
+                656,
+                1
+              ],
+              "page_nbytes": 41984
+            }
+          ],
+          "index_rows": [
+            {
+              "layer_id": 0,
+              "dtype": "torch.uint8",
+              "shape_tail": [
+                8448
+              ],
+              "stride": [
+                8448,
+                1
+              ],
+              "page_nbytes": 8448
+            },
+            {
+              "layer_id": 1,
+              "dtype": "torch.uint8",
+              "shape_tail": [
+                8448
+              ],
+              "stride": [
+                8448,
+                1
+              ],
+              "page_nbytes": 8448
+            },
+            {
+              "layer_id": 2,
+              "dtype": "torch.uint8",
+              "shape_tail": [
+                8448
+              ],
+              "stride": [
+                8448,
+                1
+              ],
+              "page_nbytes": 8448
+            },
+            {
+              "layer_id": 6,
+              "dtype": "torch.uint8",
+              "shape_tail": [
+                8448
+              ],
+              "stride": [
+                8448,
+                1
+              ],
+              "page_nbytes": 8448
+            },
+            {
+              "layer_id": 10,
+              "dtype": "torch.uint8",
+              "shape_tail": [
+                8448
+              ],
+              "stride": [
+                8448,
+                1
+              ],
+              "page_nbytes": 8448
+            },
+            {
+              "layer_id": 14,
+              "dtype": "torch.uint8",
+              "shape_tail": [
+                8448
+              ],
+              "stride": [
+                8448,
+                1
+              ],
+              "page_nbytes": 8448
+            },
+            {
+              "layer_id": 18,
+              "dtype": "torch.uint8",
+              "shape_tail": [
+                8448
+              ],
+              "stride": [
+                8448,
+                1
+              ],
+              "page_nbytes": 8448
+            },
+            {
+              "layer_id": 22,
+              "dtype": "torch.uint8",
+              "shape_tail": [
+                8448
+              ],
+              "stride": [
+                8448,
+                1
+              ],
+              "page_nbytes": 8448
+            },
+            {
+              "layer_id": 26,
+              "dtype": "torch.uint8",
+              "shape_tail": [
+                8448
+              ],
+              "stride": [
+                8448,
+                1
+              ],
+              "page_nbytes": 8448
+            },
+            {
+              "layer_id": 30,
+              "dtype": "torch.uint8",
+              "shape_tail": [
+                8448
+              ],
+              "stride": [
+                8448,
+                1
+              ],
+              "page_nbytes": 8448
+            },
+            {
+              "layer_id": 34,
+              "dtype": "torch.uint8",
+              "shape_tail": [
+                8448
+              ],
+              "stride": [
+                8448,
+                1
+              ],
+              "page_nbytes": 8448
+            },
+            {
+              "layer_id": 38,
+              "dtype": "torch.uint8",
+              "shape_tail": [
+                8448
+              ],
+              "stride": [
+                8448,
+                1
+              ],
+              "page_nbytes": 8448
+            },
+            {
+              "layer_id": 42,
+              "dtype": "torch.uint8",
+              "shape_tail": [
+                8448
+              ],
+              "stride": [
+                8448,
+                1
+              ],
+              "page_nbytes": 8448
+            },
+            {
+              "layer_id": 46,
+              "dtype": "torch.uint8",
+              "shape_tail": [
+                8448
+              ],
+              "stride": [
+                8448,
+                1
+              ],
+              "page_nbytes": 8448
+            },
+            {
+              "layer_id": 50,
+              "dtype": "torch.uint8",
+              "shape_tail": [
+                8448
+              ],
+              "stride": [
+                8448,
+                1
+              ],
+              "page_nbytes": 8448
+            },
+            {
+              "layer_id": 54,
+              "dtype": "torch.uint8",
+              "shape_tail": [
+                8448
+              ],
+              "stride": [
+                8448,
+                1
+              ],
+              "page_nbytes": 8448
+            },
+            {
+              "layer_id": 58,
+              "dtype": "torch.uint8",
+              "shape_tail": [
+                8448
+              ],
+              "stride": [
+                8448,
+                1
+              ],
+              "page_nbytes": 8448
+            },
+            {
+              "layer_id": 62,
+              "dtype": "torch.uint8",
+              "shape_tail": [
+                8448
+              ],
+              "stride": [
+                8448,
+                1
+              ],
+              "page_nbytes": 8448
+            },
+            {
+              "layer_id": 66,
+              "dtype": "torch.uint8",
+              "shape_tail": [
+                8448
+              ],
+              "stride": [
+                8448,
+                1
+              ],
+              "page_nbytes": 8448
+            },
+            {
+              "layer_id": 70,
+              "dtype": "torch.uint8",
+              "shape_tail": [
+                8448
+              ],
+              "stride": [
+                8448,
+                1
+              ],
+              "page_nbytes": 8448
+            },
+            {
+              "layer_id": 74,
+              "dtype": "torch.uint8",
+              "shape_tail": [
+                8448
+              ],
+              "stride": [
+                8448,
+                1
+              ],
+              "page_nbytes": 8448
+            }
+          ],
+          "dsa_model_layer_map": {
+            "active_layer_ids": [
+              0,
+              1,
+              2,
+              6,
+              10,
+              14,
+              18,
+              22,
+              26,
+              30,
+              34,
+              38,
+              42,
+              46,
+              50,
+              54,
+              58,
+              62,
+              66,
+              70,
+              74
+            ],
+            "config_sha256": "ece88d79ebdfd7c8d2e61a3f524c1c4174e96877311e12407b65842fcfea2026",
+            "declaration": {
+              "architectures": [
+                "GlmMoeDsaForCausalLM"
+              ],
+              "cli_factor": null,
+              "index_skip_topk_offset": 3,
+              "index_topk": 2048,
+              "index_topk_freq": 4,
+              "index_topk_pattern": null,
+              "model_type": "glm_moe_dsa"
+            },
+            "num_hidden_layers": 78
+          }
+        },
+        "attn_tp_size": 8,
+        "attn_cp_size": 1
+      }
+    },
+    "qualified": true
+  }
+}
