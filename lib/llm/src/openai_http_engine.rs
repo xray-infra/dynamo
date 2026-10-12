@@ -70,6 +70,19 @@ impl OpenAiHttpEngine {
     }
 }
 
+fn worker_request(mut request: NvCreateChatCompletionRequest) -> anyhow::Result<Value> {
+    request.normalize_reasoning_template_args()?;
+    let mut body = serde_json::to_value(request)?;
+    // Dynamo owns canonical chat_template_args; OpenAI HTTP workers consume
+    // chat_template_kwargs. Normalize once at this transport boundary.
+    if let Some(arguments) = body.as_object_mut().unwrap().remove("chat_template_args") {
+        body["chat_template_kwargs"] = arguments;
+    }
+    body["stream"] = json!(true);
+    body["stream_options"] = json!({"include_usage": true});
+    Ok(body)
+}
+
 fn decode_event(data: &str) -> anyhow::Result<NvCreateChatCompletionStreamResponse> {
     let chunk: NvCreateChatCompletionStreamResponse = serde_json::from_str(data)?;
     // Required identity comes from the backend, never a synthesized template.
@@ -88,12 +101,10 @@ impl StreamingEngine for OpenAiHttpEngine {
     ) -> Result<ManyOut<Annotated<NvCreateChatCompletionStreamResponse>>, Error> {
         let (request, context) = req.into_parts();
         let ctx = context.context();
-        let mut body = serde_json::to_value(request)?;
+        // Obtain native usage for upstream unary aggregation and Messages,
+        // independent of the public client's stream_options.
+        let body = worker_request(request)?;
         let choices = body.get("n").and_then(Value::as_u64).unwrap_or(1) as usize;
-        body["stream"] = json!(true);
-        // The upstream handlers decide whether to expose usage. The engine must
-        // obtain native counters even for unary aggregation and Messages.
-        body["stream_options"] = json!({"include_usage": true});
         let worker = &self.workers[self.next.fetch_add(1, Ordering::Relaxed) % self.workers.len()];
         let response = tokio::select! {
             _ = ctx.stopped() => bail!("request cancelled before native HTTP headers"),
@@ -188,6 +199,29 @@ impl StreamingEngine for OpenAiHttpEngine {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn worker_request_maps_canonical_and_legacy_template_controls() {
+        for extra in [
+            json!({"chat_template_args": {"enable_thinking": false, "test_custom": 7}}),
+            json!({"chat_template_kwargs": {"enable_thinking": false, "test_custom": 7}}),
+            json!({"thinking": {"type": "disabled"}}),
+        ] {
+            let mut raw =
+                json!({"model": "glm-5.3-flash", "messages": [{"role": "user", "content": "OK"}]});
+            raw.as_object_mut()
+                .unwrap()
+                .extend(extra.as_object().unwrap().clone());
+            let body = worker_request(serde_json::from_value(raw).unwrap()).unwrap();
+            assert!(body.get("chat_template_args").is_none());
+            assert_eq!(body["chat_template_kwargs"]["enable_thinking"], false);
+            if extra.get("thinking").is_none() {
+                assert_eq!(body["chat_template_kwargs"]["test_custom"], 7);
+            }
+            assert_eq!(body["stream"], true);
+            assert_eq!(body["stream_options"]["include_usage"], true);
+        }
+    }
 
     #[test]
     fn native_usage_only_chunk_retains_backend_envelope() {
