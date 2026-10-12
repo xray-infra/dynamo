@@ -37,7 +37,10 @@ caller is allowed to use. The adapter does not add a private authority scheme.
 
 An explicit OpenAI `prompt_cache_key` is preserved from Chat Completions and
 Responses and provides deterministic rendezvous affinity, scoped by model and
-cache namespace. Requests without a key retain round-robin routing. This is a
+cache namespace. Responses conversion normalizes the same non-empty
+`nvext.cache_salt` / legacy root `cache_salt` precedence as Chat before dropping
+unrecognized options. Header tenant override remains owned by ingress. Requests
+without a key retain round-robin routing. This is a
 routing hint, not real-time KV-residency discovery, load-aware scheduling or a
 cache-hit guarantee. Successful inference is never retried after an ambiguous
 worker response.

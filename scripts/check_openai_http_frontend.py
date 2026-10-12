@@ -44,7 +44,12 @@ class Worker(BaseHTTPRequestHandler):
         assert body["stream"] is True
         assert body["stream_options"]["include_usage"] is True
         # Public header overrides the body salt; the worker owns cache_salt.
-        assert body["cache_salt"] == "tenant-fixture", body
+        expected_salt = (
+            "root-tenant"
+            if body.get("prompt_cache_key") == "responses-top-level-fixture"
+            else "tenant-fixture"
+        )
+        assert body["cache_salt"] == expected_salt, body
         Worker.requests.append((body.get("prompt_cache_key"), self.server.server_port))
         tool = bool(body.get("tools"))
         identity = {
@@ -334,6 +339,15 @@ def main():
                     if key == "responses-stable-prefix"
                 }
                 assert len(destinations) == 1, destinations
+
+                legacy_namespace = dict(
+                    responses,
+                    cache_salt="root-tenant",
+                    prompt_cache_key="responses-top-level-fixture",
+                )
+                legacy_namespace.pop("nvext")
+                response = json.loads(request(base + "/v1/responses", legacy_namespace))
+                assert response["status"] == "completed", response
 
                 def rejected(path, candidate, status):
                     before = len(Worker.requests)

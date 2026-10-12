@@ -6513,6 +6513,7 @@ mod tests {
             nvext: None,
             chat_template_args: None,
             thinking_token_budget: None,
+            unsupported_fields: Default::default(),
         }
     }
 
