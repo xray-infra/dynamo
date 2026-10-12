@@ -144,7 +144,73 @@ pub(super) fn get_body_limit() -> usize {
         .unwrap_or(45 * 1024 * 1024)
 }
 
-pub type ErrorResponse = (StatusCode, Json<ErrorMessage>);
+pub type ErrorResponse = (StatusCode, Json<OpenAiErrorResponse>);
+
+/// The protocol's error response DTO. Internal error classification stays in
+/// ErrorMessage; serialize directly to the public schema, without middleware.
+#[derive(Serialize, Deserialize, Debug)]
+pub(crate) struct OpenAiErrorResponse {
+    #[serde(serialize_with = "serialize_openai_error")]
+    error: ErrorMessage,
+}
+
+impl From<ErrorMessage> for OpenAiErrorResponse {
+    fn from(error: ErrorMessage) -> Self {
+        Self { error }
+    }
+}
+
+impl std::ops::Deref for OpenAiErrorResponse {
+    type Target = ErrorMessage;
+    fn deref(&self) -> &Self::Target {
+        &self.error
+    }
+}
+
+impl std::ops::DerefMut for OpenAiErrorResponse {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.error
+    }
+}
+
+fn serialize_openai_error<S: serde::Serializer>(
+    error: &ErrorMessage,
+    serializer: S,
+) -> Result<S::Ok, S::Error> {
+    #[derive(Serialize)]
+    struct Body<'a> {
+        message: &'a str,
+        #[serde(rename = "type")]
+        error_type: &'a str,
+        code: String,
+        param: Option<&'a str>,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        details: Option<&'a serde_json::Value>,
+    }
+    Body {
+        message: &error.message,
+        error_type: &error.error_type,
+        code: error.code.to_string(),
+        param: None,
+        details: error.details.as_deref(),
+    }
+    .serialize(serializer)
+}
+
+fn deserialize_http_error_code<'de, D: serde::Deserializer<'de>>(
+    decoder: D,
+) -> Result<u16, D::Error> {
+    #[derive(Deserialize)]
+    #[serde(untagged)]
+    enum Code {
+        Number(u16),
+        Text(String),
+    }
+    match Code::deserialize(decoder)? {
+        Code::Number(code) => Ok(code),
+        Code::Text(code) => code.parse().map_err(serde::de::Error::custom),
+    }
+}
 
 /// Preserve an emitted failure when the response body is dropped before EOF.
 struct StreamingLifecycleTerminal {
@@ -242,6 +308,7 @@ pub(crate) struct ErrorMessage {
     message: String,
     #[serde(rename = "type")]
     error_type: String,
+    #[serde(deserialize_with = "deserialize_http_error_code")]
     code: u16,
     #[serde(skip_serializing_if = "Option::is_none")]
     details: Option<Box<serde_json::Value>>,
@@ -488,13 +555,13 @@ impl ErrorMessage {
         let error_type = map_error_code_to_error_type(code);
         (
             code,
-            Json(ErrorMessage {
+            Json(OpenAiErrorResponse::from(ErrorMessage {
                 message: "Model not found".to_string(),
                 error_type,
                 code: code.as_u16(),
                 details: None,
                 metric_error_type: None,
-            }),
+            })),
         )
     }
 
@@ -528,13 +595,13 @@ impl ErrorMessage {
         record_local_failure(ErrorClass::Unavailable);
         (
             code,
-            Json(ErrorMessage {
+            Json(OpenAiErrorResponse::from(ErrorMessage {
                 message: "Service is not ready".to_string(),
                 error_type: unavailable_error_type(),
                 code: code.as_u16(),
                 details: None,
                 metric_error_type: Some(ErrorType::Unavailable),
-            }),
+            })),
         )
     }
 
@@ -549,13 +616,13 @@ impl ErrorMessage {
         record_local_failure(ErrorClass::Unavailable);
         (
             code,
-            Json(ErrorMessage {
+            Json(OpenAiErrorResponse::from(ErrorMessage {
                 message,
                 error_type: unavailable_error_type(),
                 code: code.as_u16(),
                 details: None,
                 metric_error_type: Some(ErrorType::Unavailable),
-            }),
+            })),
         )
     }
 
@@ -571,13 +638,13 @@ impl ErrorMessage {
         let reason = map_error_code_to_error_type(code);
         (
             code,
-            Json(ErrorMessage {
+            Json(OpenAiErrorResponse::from(ErrorMessage {
                 message: reason.clone(),
                 error_type: reason,
                 code: code.as_u16(),
                 details: None,
                 metric_error_type: Some(ErrorType::Cancelled),
-            }),
+            })),
         )
     }
 
@@ -595,13 +662,13 @@ impl ErrorMessage {
         record_local_failure(ErrorClass::Internal);
         (
             code,
-            Json(ErrorMessage {
+            Json(OpenAiErrorResponse::from(ErrorMessage {
                 message: msg.to_string(),
                 error_type: internal_error_type(),
                 code: code.as_u16(),
                 details: None,
                 metric_error_type: Some(ErrorType::Internal),
-            }),
+            })),
         )
     }
 
@@ -622,13 +689,13 @@ impl ErrorMessage {
         record_local_failure(ErrorClass::Internal);
         (
             code,
-            Json(ErrorMessage {
+            Json(OpenAiErrorResponse::from(ErrorMessage {
                 message: public_msg.to_string(),
                 error_type: internal_error_type(),
                 code: code.as_u16(),
                 details: None,
                 metric_error_type: Some(ErrorType::Internal),
-            }),
+            })),
         )
     }
 
@@ -670,13 +737,13 @@ impl ErrorMessage {
         };
         (
             status,
-            Json(ErrorMessage {
+            Json(OpenAiErrorResponse::from(ErrorMessage {
                 message: err.to_string(),
                 error_type,
                 code: status.as_u16(),
                 details: None,
                 metric_error_type,
-            }),
+            })),
         )
     }
 
@@ -710,13 +777,13 @@ impl ErrorMessage {
         let error_type = map_error_code_to_error_type(code);
         (
             code,
-            Json(ErrorMessage {
+            Json(OpenAiErrorResponse::from(ErrorMessage {
                 message: msg.to_string(),
                 error_type,
                 code: code.as_u16(),
                 details: None,
                 metric_error_type: None,
-            }),
+            })),
         )
     }
 
@@ -732,13 +799,13 @@ impl ErrorMessage {
         let error_type = bad_request_error_type();
         (
             code,
-            Json(ErrorMessage {
+            Json(OpenAiErrorResponse::from(ErrorMessage {
                 message: msg.to_string(),
                 error_type,
                 code: code.as_u16(),
                 details: None,
                 metric_error_type: Some(ErrorType::NotImplemented),
-            }),
+            })),
         )
     }
 
@@ -748,13 +815,13 @@ impl ErrorMessage {
         let error_type = map_error_code_to_error_type(code);
         (
             code,
-            Json(ErrorMessage {
+            Json(OpenAiErrorResponse::from(ErrorMessage {
                 message: msg.to_string(),
                 error_type,
                 code: code.as_u16(),
                 details: None,
                 metric_error_type: None,
-            }),
+            })),
         )
     }
 
@@ -800,7 +867,7 @@ impl ErrorMessage {
 
         Some((
             status,
-            Json(ErrorMessage {
+            Json(OpenAiErrorResponse::from(ErrorMessage {
                 message: error.public_message().unwrap_or(public_message).to_string(),
                 error_type: semantic_error_type(error.class(), status),
                 code: status.as_u16(),
@@ -815,7 +882,7 @@ impl ErrorMessage {
                     .and_then(|details| serde_json::to_value(details).ok())
                     .map(Box::new),
                 metric_error_type: Some(metric_error_type_for_class(error.class())),
-            }),
+            })),
         ))
     }
 
@@ -829,13 +896,13 @@ impl ErrorMessage {
             record_local_failure(ErrorClass::CapacityExhausted);
             return (
                 code,
-                Json(ErrorMessage {
+                Json(OpenAiErrorResponse::from(ErrorMessage {
                     message: rejection.to_string(),
                     error_type: map_error_code_to_error_type(code),
                     code: code.as_u16(),
                     details: serde_json::to_value(rejection).ok().map(Box::new),
                     metric_error_type: None,
-                }),
+                })),
             );
         }
 
@@ -844,13 +911,13 @@ impl ErrorMessage {
             let code = StatusCode::TOO_MANY_REQUESTS;
             return (
                 code,
-                Json(ErrorMessage {
+                Json(OpenAiErrorResponse::from(ErrorMessage {
                     message: super::metrics::REQUEST_DEADLINE_EXCEEDED_MESSAGE.to_string(),
                     error_type: map_error_code_to_error_type(code),
                     code: code.as_u16(),
                     details: None,
                     metric_error_type: Some(ErrorType::Cancelled),
-                }),
+                })),
             );
         }
 
@@ -924,13 +991,13 @@ impl ErrorMessage {
             }
             BackendStatusAction::ForwardClientError => (
                 status,
-                Json(ErrorMessage {
+                Json(OpenAiErrorResponse::from(ErrorMessage {
                     message: err.message,
                     error_type: map_error_code_to_error_type(status),
                     code: status.as_u16(),
                     details: None,
                     metric_error_type: None,
-                }),
+                })),
             ),
         }
     }
@@ -991,7 +1058,11 @@ impl From<HttpError> for ErrorMessage {
 }
 
 fn unprocessable_error_message(body: &[u8]) -> (String, bool) {
-    match serde_json::from_slice::<ErrorMessage>(body) {
+    // Tolerant reader for the new standard envelope and legacy flat errors.
+    let decoded = serde_json::from_slice::<OpenAiErrorResponse>(body)
+        .map(|response| response.error)
+        .or_else(|_| serde_json::from_slice::<ErrorMessage>(body));
+    match decoded {
         Ok(error) => (error.message, true),
         Err(_) => (String::from_utf8_lossy(body).into_owned(), false),
     }
@@ -1014,13 +1085,13 @@ pub async fn smart_json_error_middleware(request: Request<Body>, next: Next) -> 
         }
         (
             StatusCode::BAD_REQUEST,
-            Json(ErrorMessage {
+            Json(OpenAiErrorResponse::from(ErrorMessage {
                 message: error_message,
                 error_type: bad_request_error_type(),
                 code: StatusCode::BAD_REQUEST.as_u16(),
                 details: None,
                 metric_error_type: None,
-            }),
+            })),
         )
             .into_response()
     } else {
@@ -3245,13 +3316,13 @@ fn backend_error_response(backend_error: BackendErrorInfo, record_failure: bool)
                 .to_string();
             (
                 status,
-                Json(ErrorMessage {
+                Json(OpenAiErrorResponse::from(ErrorMessage {
                     message,
                     error_type: map_error_code_to_error_type(status),
                     code: status.as_u16(),
                     details: None,
                     metric_error_type: None,
-                }),
+                })),
             )
         }
     };
@@ -4625,13 +4696,13 @@ pub(crate) fn unmatched_route_response(method: &Method, uri: &Uri) -> ErrorRespo
     record_local_failure(ErrorClass::NotFound);
     (
         code,
-        Json(ErrorMessage {
+        Json(OpenAiErrorResponse::from(ErrorMessage {
             message: format!("Route not found: {} {}", method, uri.path()),
             error_type: map_error_code_to_error_type(code),
             code: code.as_u16(),
             details: None,
             metric_error_type: None,
-        }),
+        })),
     )
 }
 
@@ -6442,6 +6513,7 @@ mod tests {
             nvext: None,
             chat_template_args: None,
             thinking_token_budget: None,
+            unsupported_fields: Default::default(),
         }
     }
 
@@ -7229,13 +7301,13 @@ mod tests {
     fn terminal_outcome_uses_semantic_error_type() {
         let mut response = (
             StatusCode::SERVICE_UNAVAILABLE,
-            Json(ErrorMessage {
+            Json(OpenAiErrorResponse::from(ErrorMessage {
                 message: "request rejected because the service is overloaded".to_string(),
                 error_type: "service_unavailable".to_string(),
                 code: StatusCode::SERVICE_UNAVAILABLE.as_u16(),
                 details: None,
                 metric_error_type: Some(ErrorType::Overload),
-            }),
+            })),
         );
 
         for status in [503, 504, 529] {
@@ -8050,7 +8122,7 @@ mod tests {
                 let body = axum::body::to_bytes(response.into_body(), get_body_limit())
                     .await
                     .unwrap();
-                let error: ErrorMessage = serde_json::from_slice(&body).unwrap();
+                let error: OpenAiErrorResponse = serde_json::from_slice(&body).unwrap();
                 assert_eq!(
                     error.message,
                     format!(

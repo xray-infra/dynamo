@@ -2134,9 +2134,9 @@ mod tests {
 
         assert_eq!(resp.status(), reqwest::StatusCode::UNSUPPORTED_MEDIA_TYPE);
         let body: serde_json::Value = resp.json().await.expect("body must be JSON");
-        assert_eq!(body["code"], 415);
+        assert_eq!(body["error"]["code"], 415.to_string());
         assert_eq!(
-            body["message"],
+            body["error"]["message"],
             "Expected request with Content-Type application/json"
         );
 
@@ -2165,9 +2165,9 @@ mod tests {
             "the 415 must be JSON, not Axum's text/plain rejection"
         );
         let body: serde_json::Value = resp.json().await.expect("body must be JSON");
-        assert_eq!(body["code"], 415);
+        assert_eq!(body["error"]["code"], 415.to_string());
         assert_eq!(
-            body["message"],
+            body["error"]["message"],
             "Expected request with Content-Type application/json"
         );
 
@@ -2190,14 +2190,14 @@ mod tests {
 
         assert_eq!(resp.status(), reqwest::StatusCode::BAD_REQUEST);
         let body: serde_json::Value = resp.json().await.expect("body must be JSON");
-        assert_eq!(body["code"], 400);
+        assert_eq!(body["error"]["code"], 400.to_string());
         assert!(
-            body["message"]
+            body["error"]["message"]
                 .as_str()
                 .expect("message must be a string")
                 .starts_with("Failed to deserialize the JSON body into the target type"),
             "unexpected message: {}",
-            body["message"]
+            body["error"]["message"]
         );
 
         handle.abort();
@@ -2216,9 +2216,9 @@ mod tests {
 
         assert_eq!(resp.status(), reqwest::StatusCode::NOT_FOUND);
         let body: serde_json::Value = resp.json().await.expect("body must be JSON");
-        assert_eq!(body["code"], 404);
+        assert_eq!(body["error"]["code"], 404.to_string());
         assert_eq!(
-            body["message"],
+            body["error"]["message"],
             "Route not found: GET /v1/responses/resp_missing"
         );
 
@@ -2247,9 +2247,9 @@ mod tests {
 
             assert_eq!(resp.status(), reqwest::StatusCode::PAYLOAD_TOO_LARGE);
             let body: serde_json::Value = resp.json().await.expect("body must be JSON");
-            assert_eq!(body["code"], 413);
+            assert_eq!(body["error"]["code"], 413.to_string());
             assert_eq!(
-                body["message"],
+                body["error"]["message"],
                 format!(
                     "Request body exceeds the limit of 1 MB set by {}",
                     env_llm::DYN_HTTP_BODY_LIMIT_MB
@@ -2277,7 +2277,7 @@ mod tests {
 
         assert_eq!(unmatched.status(), reqwest::StatusCode::NOT_FOUND);
         let body: serde_json::Value = unmatched.json().await.expect("body must be JSON");
-        assert_eq!(body["code"], 404);
+        assert_eq!(body["error"]["code"], 404.to_string());
 
         let registered = client
             .post(format!("http://localhost:{port}/v1/responses"))
@@ -2327,14 +2327,14 @@ mod tests {
         assert_eq!(openai_response.status(), reqwest::StatusCode::NOT_FOUND);
         let openai_body: serde_json::Value =
             openai_response.json().await.expect("body must be JSON");
-        assert_eq!(openai_body["code"], 404);
+        assert_eq!(openai_body["error"]["code"], 404.to_string());
         assert_eq!(
-            openai_body["message"],
+            openai_body["error"]["message"],
             "Route not found: GET /v1/messages_beta/missing"
         );
         assert!(
-            openai_body.get("error").is_none(),
-            "sibling paths must use the OpenAI error envelope"
+            openai_body.get("error").is_some() && openai_body.get("type").is_none(),
+            "sibling paths must use the OpenAI error envelope, not Anthropic's type=error"
         );
 
         handle.abort();

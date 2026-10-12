@@ -70,6 +70,12 @@ pub struct NvCreateResponse {
     #[schema(value_type = Object)]
     pub chat_template_args: Option<std::collections::HashMap<String, serde_json::Value>>,
 
+    // Match Chat's tolerant extension reader. Only recognized compatibility
+    // fields are normalized by the converter, not arbitrary unknown options.
+    #[serde(flatten, default, skip_serializing)]
+    #[schema(ignore)]
+    pub unsupported_fields: HashMap<String, serde_json::Value>,
+
     /// OpenAI-style reasoning token budget: bounds the number of reasoning
     /// (thinking) tokens generated per request. Forwarded to the backend's
     /// `thinking_token_budget` sampling parameter when supported.
@@ -170,6 +176,10 @@ impl NvExtProvider for NvCreateResponse {
 
     fn raw_prompt(&self) -> Option<String> {
         None
+    }
+
+    fn unsupported_fields(&self) -> Option<&HashMap<String, serde_json::Value>> {
+        Some(&self.unsupported_fields)
     }
 }
 
@@ -914,6 +924,20 @@ impl TryFrom<NvCreateResponse> for NvCreateChatCompletionRequest {
     /// Convert a Responses request using one alias map for tools, history, and choices.
     /// Return an error for tool types or choices that Chat Completions cannot represent.
     fn try_from(resp: NvCreateResponse) -> Result<Self, Self::Error> {
+        if resp.inner.prompt_cache_retention.is_some() {
+            return Err(ResponsesConversionError::UnsupportedContent(
+                "prompt_cache_retention cannot be represented in the Chat Completions backend contract".to_string(),
+            ).into());
+        }
+        // Normalize the same canonical/legacy namespace precedence as Chat
+        // before the converter consumes the protocol DTO. Do not lose the
+        // legacy top-level cache_salt or forward unrelated unknown options.
+        let cache_salt =
+            crate::protocols::common::extensions::request_cache_salt(&resp).map(str::to_owned);
+        let mut nvext = resp.nvext;
+        if let Some(cache_salt) = cache_salt {
+            nvext.get_or_insert_with(Default::default).cache_salt = Some(cache_salt);
+        }
         let names = ToolNameMap::new(
             resp.inner.tools.as_deref().unwrap_or_default(),
             Some(&resp.inner.input),
@@ -1045,10 +1069,11 @@ impl TryFrom<NvCreateResponse> for NvCreateChatCompletionRequest {
                 reasoning_effort,
                 response_format,
                 service_tier,
+                prompt_cache_key: resp.inner.prompt_cache_key,
                 ..Default::default()
             },
             common: Default::default(),
-            nvext: resp.nvext,
+            nvext,
             chat_template_args: resp.chat_template_args,
             thinking: None,
             thinking_token_budget: resp.thinking_token_budget,
@@ -1472,6 +1497,7 @@ mod tests {
             nvext: None,
             chat_template_args: None,
             thinking_token_budget: None,
+            unsupported_fields: Default::default(),
         }
     }
 
@@ -2497,6 +2523,7 @@ mod tests {
                 nvext: None,
                 chat_template_args: None,
                 thinking_token_budget: None,
+                unsupported_fields: Default::default(),
             };
 
             let chat_req: NvCreateChatCompletionRequest = req.try_into().unwrap();
@@ -4281,6 +4308,33 @@ mod tests {
     /// echo it back so the caller can confirm receipt without enforcing any
     /// caching semantics. Same pattern for `prompt_cache_retention` and
     /// `safety_identifier`.
+    #[test]
+    fn test_request_namespace_survives_responses_conversion() {
+        for (nvext, legacy, expected) in [
+            (serde_json::Value::Null, "legacy", "legacy"),
+            (
+                serde_json::json!({"cache_salt":"canonical"}),
+                "legacy",
+                "canonical",
+            ),
+            (serde_json::json!({"cache_salt":""}), "legacy", "legacy"),
+        ] {
+            let request: NvCreateResponse = serde_json::from_value(serde_json::json!({
+                "model":"glm-5.3-flash", "input":"OK", "nvext":nvext,
+                "cache_salt":legacy, "prompt_cache_key":"affinity",
+                "unrelated_option":"do-not-forward"
+            }))
+            .unwrap();
+            let chat = NvCreateChatCompletionRequest::try_from(request).unwrap();
+            assert_eq!(
+                crate::protocols::common::extensions::request_cache_salt(&chat),
+                Some(expected)
+            );
+            assert_eq!(chat.inner.prompt_cache_key.as_deref(), Some("affinity"));
+            assert!(chat.unsupported_fields.is_empty());
+        }
+    }
+
     #[test]
     fn test_response_echoes_passthrough_metadata() {
         let chat_resp = make_chat_resp_with_text("hello");
