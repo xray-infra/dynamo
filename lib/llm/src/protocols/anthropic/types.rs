@@ -594,8 +594,8 @@ pub(super) fn completion_usage_to_anthropic(usage: &CompletionUsage) -> Anthropi
             .prompt_tokens
             .saturating_sub(cache_read_input_tokens.unwrap_or(0)),
         output_tokens: usage.completion_tokens,
-        // OpenAI-compatible usage has no cache-write count; keep the Anthropic key present.
-        cache_creation_input_tokens: Some(0),
+        // Generic OpenAI usage has no write count. Missing is not a measured zero.
+        cache_creation_input_tokens: None,
         cache_read_input_tokens,
     }
 }
@@ -868,16 +868,13 @@ pub fn chat_completion_to_anthropic_response(
         });
     }
 
-    // Keep the cache-creation key present when the backend omits usage entirely.
+    // An absent backend usage record cannot establish a cache-write count.
     let usage = chat_resp
         .inner
         .usage
         .as_ref()
         .map(completion_usage_to_anthropic)
-        .unwrap_or(AnthropicUsage {
-            cache_creation_input_tokens: Some(0),
-            ..Default::default()
-        });
+        .unwrap_or_default();
 
     AnthropicMessageResponse {
         id: msg_id,
@@ -1502,13 +1499,13 @@ mod tests {
         let response = chat_completion_to_anthropic_response(chat_resp, "test-model", None);
         assert_eq!(response.usage.input_tokens, 1);
         assert_eq!(response.usage.cache_read_input_tokens, Some(11));
-        assert_eq!(response.usage.cache_creation_input_tokens, Some(0));
+        assert_eq!(response.usage.cache_creation_input_tokens, None);
         assert_eq!(response.usage.output_tokens, 5);
 
         let serialized = serde_json::to_value(&response.usage).expect("usage serializes");
         assert_eq!(serialized["input_tokens"], 1);
         assert_eq!(serialized["cache_read_input_tokens"], 11);
-        assert_eq!(serialized["cache_creation_input_tokens"], 0);
+        assert!(serialized.get("cache_creation_input_tokens").is_none());
         assert_eq!(serialized["output_tokens"], 5);
     }
 
@@ -1554,12 +1551,36 @@ mod tests {
             let projected = completion_usage_to_anthropic(&usage);
             assert_eq!(projected.input_tokens, 12);
             assert_eq!(projected.cache_read_input_tokens, cached);
+            assert_eq!(projected.cache_creation_input_tokens, None);
             let value = serde_json::to_value(projected).unwrap();
+            assert!(value.get("cache_creation_input_tokens").is_none());
             if cached.is_some() {
                 assert_eq!(value["cache_read_input_tokens"], 0);
             } else {
                 assert!(value.get("cache_read_input_tokens").is_none());
             }
+        }
+    }
+
+    #[test]
+    fn test_native_anthropic_cache_writes_roundtrip_known_and_unknown_counts() {
+        for written in [None, Some(0), Some(7)] {
+            let usage = AnthropicUsage {
+                input_tokens: 12,
+                output_tokens: 5,
+                cache_read_input_tokens: Some(0),
+                cache_creation_input_tokens: written,
+            };
+            let value = serde_json::to_value(&usage).unwrap();
+            assert_eq!(
+                value
+                    .get("cache_creation_input_tokens")
+                    .and_then(|v| v.as_u64()),
+                written.map(u64::from)
+            );
+            let decoded: AnthropicUsage = serde_json::from_value(value).unwrap();
+            assert_eq!(decoded.cache_creation_input_tokens, written);
+            assert_eq!(decoded.cache_read_input_tokens, Some(0));
         }
     }
 
@@ -1585,7 +1606,7 @@ mod tests {
 
     #[allow(deprecated)]
     #[test]
-    fn test_anthropic_response_emits_zero_cache_creation_when_backend_reports_no_usage() {
+    fn test_anthropic_response_omits_unknown_cache_creation_when_backend_reports_no_usage() {
         let chat_resp = NvCreateChatCompletionResponse {
             inner: dynamo_protocols::types::CreateChatCompletionResponse {
                 id: "chatcmpl-no-usage".into(),
@@ -1617,10 +1638,10 @@ mod tests {
         };
 
         let response = chat_completion_to_anthropic_response(chat_resp, "test-model", None);
-        assert_eq!(response.usage.cache_creation_input_tokens, Some(0));
+        assert_eq!(response.usage.cache_creation_input_tokens, None);
 
         let serialized = serde_json::to_value(&response.usage).expect("usage serializes");
-        assert_eq!(serialized["cache_creation_input_tokens"], 0);
+        assert!(serialized.get("cache_creation_input_tokens").is_none());
     }
 
     #[allow(deprecated)]
