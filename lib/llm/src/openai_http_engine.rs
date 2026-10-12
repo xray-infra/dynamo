@@ -71,8 +71,15 @@ impl OpenAiHttpEngine {
 }
 
 fn worker_request(mut request: NvCreateChatCompletionRequest) -> anyhow::Result<Value> {
+    // Dynamo owns canonical/legacy salt precedence; HTTP workers own the
+    // top-level cache_salt field. Preserve this isolation boundary explicitly.
+    let cache_salt =
+        crate::protocols::common::extensions::request_cache_salt(&request).map(str::to_owned);
     request.normalize_reasoning_template_args()?;
     let mut body = serde_json::to_value(request)?;
+    if let Some(cache_salt) = cache_salt {
+        body["cache_salt"] = json!(cache_salt);
+    }
     // Dynamo owns canonical chat_template_args; OpenAI HTTP workers consume
     // chat_template_kwargs. Normalize once at this transport boundary.
     if let Some(arguments) = body.as_object_mut().unwrap().remove("chat_template_args") {
@@ -220,6 +227,34 @@ mod tests {
             }
             assert_eq!(body["stream"], true);
             assert_eq!(body["stream_options"]["include_usage"], true);
+        }
+    }
+
+    #[test]
+    fn worker_request_preserves_canonical_cache_salt_and_legacy_precedence() {
+        for (extra, expected) in [
+            (json!({}), None),
+            (json!({"cache_salt": "legacy"}), Some("legacy")),
+            (
+                json!({"nvext": {"cache_salt": "canonical"}}),
+                Some("canonical"),
+            ),
+            (
+                json!({"cache_salt": "legacy", "nvext": {"cache_salt": "canonical"}}),
+                Some("canonical"),
+            ),
+            (
+                json!({"cache_salt": "legacy", "nvext": {"cache_salt": ""}}),
+                Some("legacy"),
+            ),
+        ] {
+            let mut raw = json!({"model": "glm-5.3-flash",
+                "messages": [{"role": "user", "content": "OK"}]});
+            raw.as_object_mut()
+                .unwrap()
+                .extend(extra.as_object().unwrap().clone());
+            let body = worker_request(serde_json::from_value(raw).unwrap()).unwrap();
+            assert_eq!(body.get("cache_salt").and_then(Value::as_str), expected);
         }
     }
 
