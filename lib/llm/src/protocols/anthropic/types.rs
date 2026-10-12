@@ -170,17 +170,18 @@ impl TryFrom<AnthropicCreateMessageRequest> for NvCreateChatCompletionRequest {
             // when a reasoning parser is configured. The conversion layer only
             // forwards the client's explicit thinking preference here; the handler
             // has access to parsing_options and makes the final decision.
-            chat_template_args: if req
-                .thinking
-                .as_ref()
-                .is_some_and(|t| t.thinking_type == "enabled")
-            {
-                let mut args = std::collections::HashMap::new();
-                args.insert("enable_thinking".to_string(), serde_json::Value::Bool(true));
-                Some(args)
-            } else {
-                None
-            },
+            chat_template_args: req.thinking.as_ref().and_then(|thinking| {
+                let enabled = match thinking.thinking_type.as_str() {
+                    "enabled" => true,
+                    "disabled" => false,
+                    // Adaptive/unspecified thinking remains the handler's decision.
+                    _ => return None,
+                };
+                Some(std::collections::HashMap::from([(
+                    "enable_thinking".to_string(),
+                    serde_json::Value::Bool(enabled),
+                )]))
+            }),
             thinking: None,
             thinking_token_budget: None,
             media_io_kwargs: None,
@@ -1404,6 +1405,32 @@ mod tests {
         assert_eq!(serialized["cache_read_input_tokens"], 11);
         assert_eq!(serialized["cache_creation_input_tokens"], 0);
         assert_eq!(serialized["output_tokens"], 5);
+    }
+
+    #[test]
+    fn test_anthropic_conversion_preserves_explicit_thinking_preference() {
+        for (mode, expected) in [
+            ("enabled", Some(true)),
+            ("disabled", Some(false)),
+            ("adaptive", None),
+        ] {
+            let request: AnthropicCreateMessageRequest =
+                serde_json::from_value(serde_json::json!({
+                    "model": "glm-5.3-flash", "max_tokens": 64,
+                    "messages": [{"role": "user", "content": "OK"}],
+                    "thinking": {"type": mode}
+                }))
+                .unwrap();
+            let converted = NvCreateChatCompletionRequest::try_from(request).unwrap();
+            assert_eq!(
+                converted
+                    .chat_template_args
+                    .as_ref()
+                    .and_then(|args| args.get("enable_thinking"))
+                    .and_then(serde_json::Value::as_bool),
+                expected
+            );
+        }
     }
 
     #[test]
