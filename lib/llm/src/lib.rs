@@ -31,6 +31,7 @@ pub mod mocker;
 pub mod model_card;
 pub mod model_type;
 pub mod namespace;
+pub mod openai_http_engine;
 pub mod perf;
 pub mod preprocessor;
 pub mod protocols;
