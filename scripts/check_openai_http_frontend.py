@@ -277,7 +277,9 @@ def main():
                                 check = check_messages
                                 path = "/v1/messages"
                             raw = request(
-                                base + path, body, headers={"x-tenant-id": "tenant-fixture"}
+                                base + path,
+                                body,
+                                headers={"x-tenant-id": "tenant-fixture"},
                             )
                             check(raw, streaming, tool)
                             results.append(
