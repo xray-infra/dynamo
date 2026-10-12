@@ -28,6 +28,13 @@ The binary enables upstream Chat Completions and Messages routes and disables
 frontend admin mutation routes. SIGINT/SIGTERM drains in-flight HTTP requests
 before stopping the listener. It does not stop/reconfigure workers or load weights.
 
+The adapter forwards the canonical cache salt as the HTTP worker's top-level
+`cache_salt`. It uses upstream precedence (`x-tenant-id` header override,
+`nvext.cache_salt`, then legacy top-level fallback), rather than leaving namespace
+isolation hidden inside an unrecognized worker extension. The header is not an
+authentication mechanism: an API gateway must enforce which tenant identity a
+caller is allowed to use. The adapter does not add a private authority scheme.
+
 Worker requests always request native final usage, including when a public unary
 request is internally streamed. Public OpenAI usage behavior remains governed by
 `stream_options.include_usage`. Required completion identity is decoded directly
@@ -57,6 +64,9 @@ The Rust integration test starts the compiled frontend and a loopback worker
 fixture. It covers text/tool × unary/streaming × OpenAI/Anthropic (eight cases),
 native usage/envelope fidelity, disjoint cached/input accounting, tool name/ID/JSON
 arguments, fragmented mixed LF/CRLF transport, and actual protocol terminal events.
+All eight forms assert that a public tenant header overrides the body namespace
+and reaches the worker's native `cache_salt` field. A library regression covers
+canonical/legacy precedence, empty canonical fallback and absent salt.
 The fixture cannot prove GPU prefix-cache hits, model behavior, live billing,
 explicit cache-control support, or deployment readiness. No mock integration is
 used as a substitute for a live canary.
