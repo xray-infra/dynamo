@@ -392,6 +392,40 @@ async fn handler_anthropic_messages(
         AnthropicHandlerError::from_request_validation(error)
             .into_marked_response(&mut inflight_guard)
     })?;
+    // This Messages-to-Chat path has no backend TTL/breakpoint contract.
+    // Reject explicit controls before conversion discards them; default APC
+    // and its native usage remain unchanged.
+    let explicit_cache_control = request.cache_control.is_some()
+        || request
+            .system
+            .as_ref()
+            .is_some_and(|system| system.cache_control.is_some())
+        || request
+            .tools
+            .as_ref()
+            .is_some_and(|tools| tools.iter().any(|tool| tool.cache_control.is_some()))
+        || request
+            .messages
+            .iter()
+            .any(|message| match &message.content {
+                AnthropicMessageContent::Text { .. } => false,
+                AnthropicMessageContent::Blocks { content } => {
+                    content.iter().any(|block| match block {
+                        AnthropicContentBlock::Text { cache_control, .. }
+                        | AnthropicContentBlock::ToolUse { cache_control, .. }
+                        | AnthropicContentBlock::ToolResult { cache_control, .. }
+                        | AnthropicContentBlock::Thinking { cache_control, .. } => {
+                            cache_control.is_some()
+                        }
+                        _ => false,
+                    })
+                }
+            });
+    if explicit_cache_control {
+        return Err(AnthropicHandlerError::validation(
+            "cache_control is not supported by this Messages-to-Chat backend path; automatic prefix caching remains available",
+        ).into_marked_response(&mut inflight_guard));
+    }
     if request.max_tokens == 0 {
         return Err(
             AnthropicHandlerError::validation("max_tokens: must be greater than 0")

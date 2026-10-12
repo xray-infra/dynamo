@@ -914,6 +914,11 @@ impl TryFrom<NvCreateResponse> for NvCreateChatCompletionRequest {
     /// Convert a Responses request using one alias map for tools, history, and choices.
     /// Return an error for tool types or choices that Chat Completions cannot represent.
     fn try_from(resp: NvCreateResponse) -> Result<Self, Self::Error> {
+        if resp.inner.prompt_cache_retention.is_some() {
+            return Err(ResponsesConversionError::UnsupportedContent(
+                "prompt_cache_retention cannot be represented in the Chat Completions backend contract".to_string(),
+            ).into());
+        }
         let names = ToolNameMap::new(
             resp.inner.tools.as_deref().unwrap_or_default(),
             Some(&resp.inner.input),
@@ -1045,6 +1050,7 @@ impl TryFrom<NvCreateResponse> for NvCreateChatCompletionRequest {
                 reasoning_effort,
                 response_format,
                 service_tier,
+                prompt_cache_key: resp.inner.prompt_cache_key,
                 ..Default::default()
             },
             common: Default::default(),
