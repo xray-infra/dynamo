@@ -210,16 +210,51 @@ fn attach_verified_cache_accounting(
     Ok(())
 }
 
+/// Retain only completion identity, not choice content or per-chunk metadata.
+fn native_terminal_usage_template(native_chunk: &Value) -> Value {
+    let mut value = json!({"choices": []});
+    for field in [
+        "id",
+        "object",
+        "created",
+        "model",
+        "system_fingerprint",
+        "service_tier",
+    ] {
+        if let Some(native) = native_chunk.get(field) {
+            value[field] = native.clone();
+        }
+    }
+    value
+}
+
+fn record_native_usage_chunk(last: &mut Option<Value>, native_chunk: &Value) {
+    if let Some(usage) = native_chunk.get("usage") {
+        let mut value = native_terminal_usage_template(native_chunk);
+        value["usage"] = usage.clone();
+        // Null usage replaces an earlier count; it must not revive stale billing.
+        *last = Some(value);
+    }
+}
+
 fn verified_ttl_terminal_usage(
     exact_prompt_tokens: u64,
-    native_usage: Option<&Value>,
+    native_chunk: Option<&Value>,
     accounting: Option<&crate::cache_authority::cache_accounting::VerifiedCacheAccounting>,
 ) -> Result<Value, Error> {
-    let usage = native_usage.filter(|usage| usage.is_object())
+    let native_chunk = native_chunk.ok_or_else(|| invalid("usage_unavailable"))?;
+    let usage = native_chunk
+        .get("usage")
+        .filter(|usage| usage.is_object())
         .ok_or_else(|| invalid("usage_unavailable"))?;
+    let mut value = native_terminal_usage_template(native_chunk);
+    // Messages and Responses consume the same required completion envelope.
+    // Validate identity without rewriting native counters or inventing defaults.
+    serde_json::from_value::<NvCreateChatCompletionStreamResponse>(value.clone())
+        .map_err(|_| invalid("usage_unavailable"))?;
     // Preserve the same actual native output accounting as the JSON path.
     // Only verified P cache input accounting is overlaid below.
-    let mut value = serde_json::json!({"choices":[],"usage":usage.clone()});
+    value["usage"] = usage.clone();
     attach_verified_cache_accounting(&mut value, accounting, exact_prompt_tokens)?;
     Ok(value)
 }
@@ -272,6 +307,11 @@ mod cache_ingress_tests {
         }
     }
 
+    fn stream_usage_fixture(usage: Value) -> Value {
+        json!({"id":"chatcmpl-counter-fixture", "object":"chat.completion.chunk",
+            "created":1, "model":"glm-5.3-flash", "choices":[], "usage":usage})
+    }
+
     #[test]
     fn native_cache_bridge_risk_terminal_requires_native_counter_agreement() {
         use crate::cache_authority::cache_accounting::VerifiedCacheAccounting;
@@ -282,7 +322,7 @@ mod cache_ingress_tests {
             cache_creation_1h_input_tokens: 30,
         };
         for native_prompt in [None, Some(99), Some(101)] {
-            let usage = native_prompt.map(|prompt| json!({"prompt_tokens":prompt,"completion_tokens":41}));
+            let usage = native_prompt.map(|prompt| stream_usage_fixture(json!({"prompt_tokens":prompt,"completion_tokens":41})));
             assert!(
                 verified_ttl_terminal_usage(100, usage.as_ref(), Some(&report))
                     .unwrap_err()
@@ -291,8 +331,8 @@ mod cache_ingress_tests {
             );
             assert!(verified_ttl_terminal_usage(100, usage.as_ref(), None).is_err());
         }
-        assert!(verified_ttl_terminal_usage(100, Some(&json!({"prompt_tokens":100})), Some(&report)).is_err());
-        let usage = json!({"prompt_tokens":100,"completion_tokens":41});
+        assert!(verified_ttl_terminal_usage(100, Some(&stream_usage_fixture(json!({"prompt_tokens":100}))), Some(&report)).is_err());
+        let usage = stream_usage_fixture(json!({"prompt_tokens":100,"completion_tokens":41}));
         let known = verified_ttl_terminal_usage(100, Some(&usage), Some(&report)).unwrap();
         assert_eq!(known["usage"]["prompt_tokens"], 100);
         assert_eq!(
@@ -324,7 +364,7 @@ mod cache_ingress_tests {
             for (key,value) in details.as_object().unwrap() {usage[key]=value.clone();}
             let mut json_response=json!({"choices":[{"index":0}],"usage":usage.clone()});
             attach_verified_cache_accounting(&mut json_response,Some(&report),100).unwrap();
-            let terminal=verified_ttl_terminal_usage(100,Some(&usage),Some(&report)).unwrap();
+            let terminal=verified_ttl_terminal_usage(100,Some(&stream_usage_fixture(usage.clone())),Some(&report)).unwrap();
             assert_eq!(terminal["usage"],json_response["usage"]);
             assert_eq!(terminal["usage"].get("reasoning_tokens"),usage.get("reasoning_tokens"));
             assert_eq!(terminal["usage"].get("completion_tokens_details"),usage.get("completion_tokens_details"));
@@ -337,19 +377,19 @@ mod cache_ingress_tests {
             let expected_reasoning=usage.get("reasoning_tokens").and_then(Value::as_u64)
                 .or_else(||usage.get("completion_tokens_details").and_then(|details|details.get("reasoning_tokens")).and_then(Value::as_u64));
             assert_eq!(native_reasoning_tokens(&terminal).map(|(tokens,_)|tokens),expected_reasoning);
-            let unknown=verified_ttl_terminal_usage(100,Some(&usage),None).unwrap();
+            let unknown=verified_ttl_terminal_usage(100,Some(&stream_usage_fixture(usage.clone())),None).unwrap();
             assert!(unknown["usage"][VERIFIED_CACHE_ACCOUNTING_FIELD].is_null());
             assert_eq!(unknown["usage"].get("completion_tokens_details"),usage.get("completion_tokens_details"));
         }
         for usage in [json!({"prompt_tokens":100,"completion_tokens":41}),
             json!({"prompt_tokens":100,"completion_tokens":41,"total_tokens":null})] {
-            let terminal=verified_ttl_terminal_usage(100,Some(&usage),Some(&report)).unwrap();
+            let terminal=verified_ttl_terminal_usage(100,Some(&stream_usage_fixture(usage.clone())),Some(&report)).unwrap();
             assert_eq!(terminal["usage"].get("total_tokens"),usage.get("total_tokens"));
         }
         for bad in [Value::Null,json!({"prompt_tokens":99,"completion_tokens":41}),
             json!({"prompt_tokens":100}),json!({"prompt_tokens":100,"completion_tokens":41,"total_tokens":142}),
             json!({"prompt_tokens":100,"completion_tokens":u64::MAX})] {
-            assert!(verified_ttl_terminal_usage(100,Some(&bad),Some(&report)).is_err());
+            assert!(verified_ttl_terminal_usage(100,Some(&stream_usage_fixture(bad)),Some(&report)).is_err());
         }
         assert!(verified_ttl_terminal_usage(100,None,Some(&report)).is_err());
         for bad in [
@@ -2743,7 +2783,7 @@ impl NativeHttpEngine {
             let mut completed_choices = BTreeSet::new();
             let mut saw_done = false;
             let mut cache_receipt = None;
-            let mut native_usage: Option<Value> = None;
+            let mut native_usage_chunk: Option<Value> = None;
             let mut completion_tokens: Option<u64> = None;
             let mut reasoning_tokens = None;
             let mut strict_buffer = StrictStreamBuffer::new(strict_tools);
@@ -2794,7 +2834,7 @@ impl NativeHttpEngine {
                             Err(message) => { trace.finish("native_protocol_error"); yield Annotated::from_error(message); return; }
                         };
                         let terminal_usage = match final_cache_accounting {
-                            Some(accounting) => match verified_ttl_terminal_usage(prompt,native_usage.as_ref(),accounting.as_ref()) {
+                            Some(accounting) => match verified_ttl_terminal_usage(prompt,native_usage_chunk.as_ref(),accounting.as_ref()) {
                                 Ok(value) => Some(value),
                                 Err(_) => { trace.finish("native_usage_unavailable"); yield Annotated::from_error("usage_unavailable"); return; }
                             },
@@ -2825,7 +2865,7 @@ impl NativeHttpEngine {
                                 trace.response_usage(&value);
                                 // Ordinary usage is scheduling accounting. TTL authority
                                 // comes only from the authenticated native receipt query.
-                                if let Some(usage) = value.get("usage") { native_usage = Some(usage.clone()); }
+                                if cache_guard.is_some() { record_native_usage_chunk(&mut native_usage_chunk, &value); }
                                 if value.get("usage").is_some_and(|usage| !usage.is_null()) {
                                     cache_receipt = native_cache_receipt(&value);
                                     completion_tokens = value.get("usage").and_then(|u| u.get("completion_tokens")).and_then(Value::as_u64);
@@ -3591,6 +3631,10 @@ impl StreamingEngine for NativeHttpEngine {
 #[cfg(test)]
 #[path = "native_http_ha_tests.rs"]
 mod native_http_ha_tests;
+
+#[cfg(test)]
+#[path = "native_cache_terminal_usage_tests.rs"]
+mod native_cache_terminal_usage_tests;
 
 #[cfg(test)]
 #[path = "native_cache_http_wire_tests.rs"]
