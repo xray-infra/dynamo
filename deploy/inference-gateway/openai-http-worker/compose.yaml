@@ -1,0 +1,26 @@
+# SPDX-FileCopyrightText: Copyright (c) 2026 NVIDIA CORPORATION & AFFILIATES. All rights reserved.
+# SPDX-License-Identifier: Apache-2.0
+services:
+  frontend:
+    image: ${FRONTEND_IMAGE:?set the qualified image digest}
+    container_name: dynamo-glmflash-upstream-public-${FRONTEND_REVISION:?set the merged revision}
+    runtime: runc
+    network_mode: host
+    user: "1001:1001"
+    cpus: 8
+    mem_limit: 2g
+    pids_limit: 512
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    restart: unless-stopped
+    stop_grace_period: 2m
+    volumes:
+      - ./glmflash.json:/opt/public.json:ro
+    labels:
+      io.xray.frontend.revision: ${FRONTEND_REVISION}
+    logging:
+      driver: json-file
+      options:
+        max-size: 10m
+        max-file: "3"
