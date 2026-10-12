@@ -41,6 +41,8 @@ class Worker(BaseHTTPRequestHandler):
         assert body["model"] == MODEL
         assert body["stream"] is True
         assert body["stream_options"]["include_usage"] is True
+        # Public header overrides the body salt; the worker owns cache_salt.
+        assert body["cache_salt"] == "tenant-fixture", body
         tool = bool(body.get("tools"))
         identity = {
             "id": "chatcmpl-fixture",
@@ -92,10 +94,12 @@ class Worker(BaseHTTPRequestHandler):
             self.wfile.flush()
 
 
-def request(url, body=None):
+def request(url, body=None, headers=None):
     data = None if body is None else json.dumps(body).encode()
     req = urllib.request.Request(
-        url, data=data, headers={"Content-Type": "application/json"}
+        url,
+        data=data,
+        headers={"Content-Type": "application/json", **(headers or {})},
     )
     with urllib.request.urlopen(req, timeout=20) as response:
         return response.read().decode()
@@ -239,6 +243,7 @@ def main():
                                 "messages": [{"role": "user", "content": "Return OK"}],
                                 "max_tokens": 16,
                                 "stream": streaming,
+                                "nvext": {"cache_salt": "body-tenant"},
                             }
                             if protocol == "chat":
                                 if streaming:
@@ -271,7 +276,9 @@ def main():
                                     )
                                 check = check_messages
                                 path = "/v1/messages"
-                            raw = request(base + path, body)
+                            raw = request(
+                                base + path, body, headers={"x-tenant-id": "tenant-fixture"}
+                            )
                             check(raw, streaming, tool)
                             results.append(
                                 {
