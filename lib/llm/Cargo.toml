@@ -271,6 +271,10 @@ path = "tests/lora_simulation/main.rs"
 name = "generate-frontend-openapi"
 path = "src/bin/generate_frontend_openapi.rs"
 
+[[bin]]
+name = "openai-http-frontend"
+path = "src/bin/openai_http_frontend.rs"
+
 [build-dependencies]
 tonic-build = { version = "0.13.1" }
 
