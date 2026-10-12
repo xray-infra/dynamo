@@ -32,6 +32,8 @@ USAGE = {
 
 
 class Worker(BaseHTTPRequestHandler):
+    requests = []
+
     def log_message(self, *_args):
         pass
 
@@ -42,7 +44,13 @@ class Worker(BaseHTTPRequestHandler):
         assert body["stream"] is True
         assert body["stream_options"]["include_usage"] is True
         # Public header overrides the body salt; the worker owns cache_salt.
-        assert body["cache_salt"] == "tenant-fixture", body
+        expected_salt = (
+            "root-tenant"
+            if body.get("prompt_cache_key") == "responses-top-level-fixture"
+            else "tenant-fixture"
+        )
+        assert body["cache_salt"] == expected_salt, body
+        Worker.requests.append((body.get("prompt_cache_key"), self.server.server_port))
         tool = bool(body.get("tools"))
         identity = {
             "id": "chatcmpl-fixture",
@@ -196,8 +204,9 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--binary", type=Path, required=True)
     args = parser.parse_args()
-    worker = ThreadingHTTPServer(("127.0.0.1", 0), Worker)
-    threading.Thread(target=worker.serve_forever, daemon=True).start()
+    workers = [ThreadingHTTPServer(("127.0.0.1", 0), Worker) for _ in range(2)]
+    for worker in workers:
+        threading.Thread(target=worker.serve_forever, daemon=True).start()
     with socket.socket() as port_socket:
         port_socket.bind(("127.0.0.1", 0))
         port = port_socket.getsockname()[1]
@@ -211,7 +220,9 @@ def main():
                 {
                     "listen": f"127.0.0.1:{port}",
                     "model": MODEL,
-                    "workers": [f"http://127.0.0.1:{worker.server_port}"],
+                    "workers": [
+                        f"http://127.0.0.1:{worker.server_port}" for worker in workers
+                    ],
                 }
             )
         )
@@ -290,6 +301,99 @@ def main():
                                     "passed": True,
                                 }
                             )
+                body = {
+                    "model": MODEL,
+                    "messages": [{"role": "user", "content": "Return OK"}],
+                    "max_tokens": 16,
+                    "nvext": {"cache_salt": "body-tenant"},
+                    "prompt_cache_key": "stable-prefix",
+                }
+                headers = {"x-tenant-id": "tenant-fixture"}
+                for _ in range(8):
+                    check_chat(
+                        request(base + "/v1/chat/completions", body, headers),
+                        False,
+                        False,
+                    )
+                destinations = {
+                    port for key, port in Worker.requests if key == "stable-prefix"
+                }
+                assert len(destinations) == 1, destinations
+
+                responses = {
+                    "model": MODEL,
+                    "input": "Return OK",
+                    "max_output_tokens": 16,
+                    "nvext": {"cache_salt": "body-tenant"},
+                    "prompt_cache_key": "responses-stable-prefix",
+                }
+                for _ in range(8):
+                    response = json.loads(
+                        request(base + "/v1/responses", responses, headers)
+                    )
+                    assert response["status"] == "completed", response
+                    assert response["output"][0]["content"][0]["text"] == "OK", response
+                destinations = {
+                    port
+                    for key, port in Worker.requests
+                    if key == "responses-stable-prefix"
+                }
+                assert len(destinations) == 1, destinations
+
+                legacy_namespace = dict(
+                    responses,
+                    cache_salt="root-tenant",
+                    prompt_cache_key="responses-top-level-fixture",
+                )
+                legacy_namespace.pop("nvext")
+                response = json.loads(request(base + "/v1/responses", legacy_namespace))
+                assert response["status"] == "completed", response
+
+                def rejected(path, candidate, status):
+                    before = len(Worker.requests)
+                    try:
+                        request(base + path, candidate, headers)
+                    except urllib.error.HTTPError as error:
+                        payload = json.loads(error.read())
+                        assert error.code == status, (error.code, payload)
+                        assert isinstance(payload["error"]["message"], str), payload
+                        assert payload.get("usage") is None, payload
+                    else:
+                        raise AssertionError(f"Unsupported request accepted: {path}")
+                    assert (
+                        len(Worker.requests) == before
+                    ), "Rejected request reached worker"
+
+                rejected("/v1/chat/completions", dict(body, model="missing-model"), 404)
+                rejected(
+                    "/v1/chat/completions",
+                    dict(body, prompt_cache_retention="24h"),
+                    400,
+                )
+                rejected(
+                    "/v1/responses", dict(responses, prompt_cache_retention="24h"), 400
+                )
+                rejected(
+                    "/v1/messages",
+                    dict(body, cache_control={"type": "ephemeral", "ttl": "1h"}),
+                    400,
+                )
+                blocks = dict(
+                    body,
+                    messages=[
+                        {
+                            "role": "user",
+                            "content": [
+                                {
+                                    "type": "text",
+                                    "text": "OK",
+                                    "cache_control": {"type": "ephemeral"},
+                                }
+                            ],
+                        }
+                    ],
+                )
+                rejected("/v1/messages", blocks, 400)
                 print(
                     json.dumps(
                         {
@@ -312,7 +416,8 @@ def main():
                 except subprocess.TimeoutExpired:
                     process.kill()
                     process.wait()
-                worker.shutdown()
+                for worker in workers:
+                    worker.shutdown()
 
 
 if __name__ == "__main__":

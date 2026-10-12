@@ -35,6 +35,25 @@ isolation hidden inside an unrecognized worker extension. The header is not an
 authentication mechanism: an API gateway must enforce which tenant identity a
 caller is allowed to use. The adapter does not add a private authority scheme.
 
+An explicit OpenAI `prompt_cache_key` is preserved from Chat Completions and
+Responses and provides deterministic rendezvous affinity, scoped by model and
+cache namespace. Responses conversion normalizes the same non-empty
+`nvext.cache_salt` / legacy root `cache_salt` precedence as Chat before dropping
+unrecognized options. Header tenant override remains owned by ingress. Requests
+without a key retain round-robin routing. This is a
+routing hint, not real-time KV-residency discovery, load-aware scheduling or a
+cache-hit guarantee. Successful inference is never retried after an ambiguous
+worker response.
+
+Unsupported behavioral controls are rejected at their existing semantic owners:
+Messages validation rejects top-level/system/tool/content `cache_control`,
+Responses conversion rejects unrepresentable `prompt_cache_retention`, and the
+HTTP backend rejects Chat retention requests. There is no extra policy middleware
+or second JSON parsing pass. Ordinary automatic prefix caching remains available.
+OpenAI error responses are emitted directly by the existing error DTO as an
+`error` envelope with a string code; the error reader accepts both that envelope
+and legacy flat worker errors.
+
 Worker requests always request native final usage, including when a public unary
 request is internally streamed. Public OpenAI usage behavior remains governed by
 `stream_options.include_usage`. Required completion identity is decoded directly
@@ -71,7 +90,9 @@ The fixture cannot prove GPU prefix-cache hits, model behavior, live billing,
 explicit cache-control support, or deployment readiness. No mock integration is
 used as a substitute for a live canary.
 
-Production replacement must be built from this PR's committed source and pass
-bounded real-worker tests before Flash routing changes. Keep the original image
-and config for rollback; do not change other models, GPU processes, weights, VPN,
-or shared discovery state.
+Production replacement must be built from committed source and pass bounded
+real-worker tests before Flash routing changes. Retired private implementations
+must not be restored as rollback targets. Delete confirmed stopped, unreferenced
+legacy containers; retain current mounted artifacts. Worker-source replacement
+requires its own qualified candidate and authorized rolling maintenance; do not
+change other models, weights, VPN or shared discovery state.

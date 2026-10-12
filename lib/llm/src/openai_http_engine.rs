@@ -16,6 +16,7 @@ use dynamo_runtime::pipeline::{Error, ManyOut, SingleIn};
 use dynamo_runtime::protocols::annotated::Annotated;
 use futures::StreamExt;
 use serde_json::{Value, json};
+use sha2::{Digest, Sha256};
 
 use crate::engines::StreamingEngine;
 use crate::protocols::openai::chat_completions::{
@@ -34,6 +35,41 @@ pub struct OpenAiHttpEngine {
 }
 
 impl OpenAiHttpEngine {
+    fn worker_index(&self, body: &Value) -> usize {
+        let Some(key) = body
+            .get("prompt_cache_key")
+            .and_then(Value::as_str)
+            .filter(|key| !key.is_empty())
+        else {
+            return self.next.fetch_add(1, Ordering::Relaxed) % self.workers.len();
+        };
+        // Rendezvous affinity is a routing hint, not evidence of resident KV.
+        // Length framing separates model, namespace, key and worker identity;
+        // scores are stable across frontend restart and worker-list reordering.
+        let model = body
+            .get("model")
+            .and_then(Value::as_str)
+            .unwrap_or_default();
+        let salt = body
+            .get("cache_salt")
+            .and_then(Value::as_str)
+            .unwrap_or_default();
+        self.workers
+            .iter()
+            .enumerate()
+            .max_by_key(|(_, worker)| {
+                let mut hash = Sha256::new();
+                for value in [model, salt, key, worker.as_str()] {
+                    hash.update((value.len() as u64).to_be_bytes());
+                    hash.update(value.as_bytes());
+                }
+                let digest = hash.finalize();
+                u64::from_be_bytes(digest[..8].try_into().unwrap())
+            })
+            .unwrap()
+            .0
+    }
+
     pub fn new(workers: Vec<String>) -> anyhow::Result<Self> {
         ensure!(
             !workers.is_empty() && workers.len() <= 64,
@@ -75,6 +111,15 @@ fn worker_request(mut request: NvCreateChatCompletionRequest) -> anyhow::Result<
     // top-level cache_salt field. Preserve this isolation boundary explicitly.
     let cache_salt =
         crate::protocols::common::extensions::request_cache_salt(&request).map(str::to_owned);
+    if request
+        .unsupported_fields
+        .get("prompt_cache_retention")
+        .is_some_and(|value| !value.is_null())
+    {
+        return Err(crate::http::service::error::invalid_argument(
+            "prompt_cache_retention is not supported by this HTTP backend; automatic prefix caching remains available",
+        ).into());
+    }
     request.normalize_reasoning_template_args()?;
     let mut body = serde_json::to_value(request)?;
     if let Some(cache_salt) = cache_salt {
@@ -112,7 +157,7 @@ impl StreamingEngine for OpenAiHttpEngine {
         // independent of the public client's stream_options.
         let body = worker_request(request)?;
         let choices = body.get("n").and_then(Value::as_u64).unwrap_or(1) as usize;
-        let worker = &self.workers[self.next.fetch_add(1, Ordering::Relaxed) % self.workers.len()];
+        let worker = &self.workers[self.worker_index(&body)];
         let response = tokio::select! {
             _ = ctx.stopped() => bail!("request cancelled before native HTTP headers"),
             response = self.client.post(worker.clone()).json(&body).send() => response?,
@@ -256,6 +301,25 @@ mod tests {
             let body = worker_request(serde_json::from_value(raw).unwrap()).unwrap();
             assert_eq!(body.get("cache_salt").and_then(Value::as_str), expected);
         }
+    }
+
+    #[test]
+    fn explicit_cache_key_has_stable_affinity_without_changing_worker_wire() {
+        let engine = OpenAiHttpEngine::new(vec![
+            "http://127.0.0.1:28100".into(),
+            "http://127.0.0.1:28101".into(),
+        ])
+        .unwrap();
+        let raw = json!({"model":"glm-5.3-flash", "messages":[{"role":"user","content":"OK"}],
+            "prompt_cache_key":"prefix-key", "nvext":{"cache_salt":"tenant-A"}});
+        let body = worker_request(serde_json::from_value(raw).unwrap()).unwrap();
+        assert_eq!(body["prompt_cache_key"], "prefix-key");
+        let first = engine.worker_index(&body);
+        for _ in 0..16 {
+            assert_eq!(engine.worker_index(&body), first);
+        }
+        let no_key = json!({"model":"glm-5.3-flash"});
+        assert_ne!(engine.worker_index(&no_key), engine.worker_index(&no_key));
     }
 
     #[test]
