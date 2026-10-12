@@ -71,9 +71,6 @@ harness = false
 required-features = ["media-ffmpeg"]
 
 [dependencies]
-hmac = "0.12"
-rust_decimal = { version = "=1.43.0", default-features = false, features = ["std"] }
-jsonschema = { version = "=0.58.6", default-features = false, features = ["arbitrary-precision"] }
 dynamo-custom-policy-builtin = { workspace = true }
 # repo
 dynamo-kv-router = { workspace = true, features = ["metrics", "runtime-protocols", "standalone-selection"] }
@@ -94,7 +91,6 @@ dynamo-parsers-v2 = { workspace = true }
 async-stream = { workspace = true }
 async-trait = { workspace = true }
 async-nats = { workspace = true }
-etcd-client = { workspace = true }
 bytes = { workspace = true }
 chrono = { workspace = true }
 dashmap = { workspace = true }
@@ -274,6 +270,10 @@ path = "tests/lora_simulation/main.rs"
 [[bin]]
 name = "generate-frontend-openapi"
 path = "src/bin/generate_frontend_openapi.rs"
+
+[[bin]]
+name = "openai-http-frontend"
+path = "src/bin/openai_http_frontend.rs"
 
 [build-dependencies]
 tonic-build = { version = "0.13.1" }

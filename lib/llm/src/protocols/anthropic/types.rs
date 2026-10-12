@@ -554,8 +554,8 @@ pub(super) fn completion_usage_to_anthropic(usage: &CompletionUsage) -> Anthropi
         .and_then(|details| details.cached_tokens)
         // A backend must not be able to produce an Anthropic usage breakdown
         // whose cached subset exceeds the complete prompt.
-        .map(|tokens| tokens.min(usage.prompt_tokens))
-        .filter(|&tokens| tokens > 0);
+        // An explicitly reported zero is known accounting, not missing usage.
+        .map(|tokens| tokens.min(usage.prompt_tokens));
 
     AnthropicUsage {
         input_tokens: usage
@@ -1404,6 +1404,31 @@ mod tests {
         assert_eq!(serialized["cache_read_input_tokens"], 11);
         assert_eq!(serialized["cache_creation_input_tokens"], 0);
         assert_eq!(serialized["output_tokens"], 5);
+    }
+
+    #[test]
+    fn test_anthropic_usage_preserves_known_zero_without_inventing_missing_read() {
+        for cached in [Some(0), None] {
+            let usage = CompletionUsage {
+                prompt_tokens: 12,
+                completion_tokens: 5,
+                total_tokens: 17,
+                prompt_tokens_details: Some(dynamo_protocols::types::PromptTokensDetails {
+                    cached_tokens: cached,
+                    ..Default::default()
+                }),
+                completion_tokens_details: None,
+            };
+            let projected = completion_usage_to_anthropic(&usage);
+            assert_eq!(projected.input_tokens, 12);
+            assert_eq!(projected.cache_read_input_tokens, cached);
+            let value = serde_json::to_value(projected).unwrap();
+            if cached.is_some() {
+                assert_eq!(value["cache_read_input_tokens"], 0);
+            } else {
+                assert!(value.get("cache_read_input_tokens").is_none());
+            }
+        }
     }
 
     #[test]

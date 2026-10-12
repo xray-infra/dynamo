@@ -31,17 +31,7 @@ pub mod mocker;
 pub mod model_card;
 pub mod model_type;
 pub mod namespace;
-pub mod native_cleanup;
-pub mod native_cleanup_cohort;
-pub mod native_contract;
-pub mod native_fencing;
-pub mod native_http_engine;
-pub mod native_management;
-pub mod native_pd;
-pub mod native_request_cleanup;
-pub mod native_request_lifecycle;
-pub mod native_request_transport;
-pub mod native_tool_schema;
+pub mod openai_http_engine;
 pub mod perf;
 pub mod preprocessor;
 pub mod protocols;
@@ -63,11 +53,6 @@ pub mod block_manager;
 
 #[cfg(feature = "cuda")]
 pub mod cuda;
-
-pub mod cache_authority;
-mod native_cache_instruction_roles;
-mod native_cache_messages;
-mod native_cache_plan;
 
 #[cfg(test)]
 #[path = "../../runtime/src/test_utils.rs"]
