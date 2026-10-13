@@ -46,10 +46,11 @@ cache-hit guarantee. Successful inference is never retried after an ambiguous
 worker response.
 
 Unsupported behavioral controls are rejected at their existing semantic owners:
-Messages validation rejects top-level/system/tool/content `cache_control`,
-Responses conversion rejects unrepresentable `prompt_cache_retention`, and the
-HTTP backend rejects Chat retention requests. There is no extra policy middleware
-or second JSON parsing pass. Ordinary automatic prefix caching remains available.
+Messages accepts block-level Anthropic `cache_control` with `5m`/`1h` TTLs and lowers
+proven rendered boundaries into exact worker-token prefix counts, while rejecting
+ambiguous, unsupported, or malformed controls. Responses conversion rejects
+unrepresentable `prompt_cache_retention`, and the HTTP backend rejects Chat retention
+requests. Ordinary automatic prefix caching remains available.
 OpenAI error responses are emitted directly by the existing error DTO as an
 `error` envelope with a string code; the error reader accepts both that envelope
 and legacy flat worker errors.
@@ -97,9 +98,9 @@ tool name/ID/JSON arguments, fragmented mixed LF/CRLF transport, and actual prot
 terminal events. All 12 forms assert that a public tenant header overrides the body namespace
 and reaches the worker's native `cache_salt` field. A library regression covers
 canonical/legacy precedence, empty canonical fallback and absent salt.
-The fixture cannot prove GPU prefix-cache hits, model behavior, live billing,
-explicit cache-control support, or deployment readiness. No mock integration is
-used as a substitute for a live canary.
+The fixture proves public block-level cache-control acceptance but cannot prove
+worker-side TTL execution, GPU prefix-cache hits, model behavior, live billing, or
+deployment readiness. No mock integration is used as a substitute for a live canary.
 
 Production replacement must be built from committed source and pass bounded
 real-worker tests before Flash routing changes. Retired private implementations

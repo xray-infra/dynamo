@@ -436,22 +436,51 @@ def main():
                     dict(body, cache_control={"type": "ephemeral", "ttl": "1h"}),
                     400,
                 )
-                blocks = dict(
-                    body,
-                    messages=[
+                blocks = {
+                    "model": MODEL,
+                    "max_tokens": 16,
+                    "nvext": {"cache_salt": "body-tenant"},
+                    "messages": [
                         {
                             "role": "user",
                             "content": [
                                 {
                                     "type": "text",
                                     "text": "OK",
-                                    "cache_control": {"type": "ephemeral"},
+                                    "cache_control": {
+                                        "type": "ephemeral",
+                                        "ttl": "5m",
+                                    },
                                 }
                             ],
                         }
                     ],
+                }
+                check_messages(
+                    request(base + "/v1/messages", blocks, headers), False, False
                 )
-                rejected("/v1/messages", blocks, 400)
+                rejected(
+                    "/v1/messages",
+                    {
+                        **blocks,
+                        "messages": [
+                            {
+                                "role": "user",
+                                "content": [
+                                    {
+                                        "type": "text",
+                                        "text": "OK",
+                                        "cache_control": {
+                                            "type": "ephemeral",
+                                            "ttl": "10m",
+                                        },
+                                    }
+                                ],
+                            }
+                        ],
+                    },
+                    400,
+                )
                 print(
                     json.dumps(
                         {

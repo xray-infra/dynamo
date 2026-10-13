@@ -654,6 +654,47 @@ fn sglang_0521_request_controls_are_forwarded() {
 }
 
 #[test]
+fn anthropic_cache_breakpoint_reaches_worker_bound_kv_hints() {
+    let mut request = request();
+    request.kv_hint = Some(KvHint::new(
+        "message-cache",
+        vec![KvHintAction::new(
+            "anthropic-cache-control-messages-2-1",
+            "kv.retain_prefix",
+            "1.0",
+            std::collections::BTreeMap::from([
+                ("duration_seconds".to_string(), json!(3600)),
+                ("prefix_token_count".to_string(), json!(42)),
+            ]),
+        )],
+    ));
+
+    let mapped = build_generate_request(
+        &request,
+        "cache-control",
+        DisaggregationMode::Aggregated,
+        None,
+        None,
+    )
+    .unwrap();
+    let action = &mapped.kv_hints.unwrap().actions[0];
+    assert_eq!(action.action_type, "kv.retain_prefix");
+    assert_eq!(action.action_version, "1.0");
+    assert_eq!(
+        dynamo_sidecar_common::struct_to_json(
+            action.payload.clone().unwrap(),
+            "SGLang",
+            "kv hint action payload",
+        )
+        .unwrap(),
+        json!({
+            "duration_seconds": 3600,
+            "prefix_token_count": 42
+        })
+    );
+}
+
+#[test]
 fn selected_adapter_cache_identity_and_role_rank_are_forwarded() {
     let mut request = request();
     request.mdc_sum = Some("model-cache-key".to_string());

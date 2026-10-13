@@ -95,6 +95,32 @@ impl KvHint {
     }
 }
 
+/// Merge independently produced actions into one worker-bound envelope.
+///
+/// The base envelope owns message identity; the additional envelope contributes actions.
+/// An additional action replaces a base action with the same ID, so a newly selected router
+/// transfer cannot leave a stale retry action behind. Actions from independent producers coexist.
+pub fn merge_kv_hints(base: Option<KvHint>, additional: Option<KvHint>) -> Option<KvHint> {
+    match (base, additional) {
+        (Some(mut base), Some(additional)) => {
+            for action in additional.actions {
+                if let Some(index) = base
+                    .actions
+                    .iter()
+                    .position(|existing| existing.action_id == action.action_id)
+                {
+                    base.actions[index] = action;
+                } else {
+                    base.actions.push(action);
+                }
+            }
+            Some(base)
+        }
+        (Some(base), None) => Some(base),
+        (None, additional) => additional,
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum KvTransferCandidateSource {
     Worker(WorkerWithDpRank),
@@ -198,6 +224,39 @@ mod tests {
 
         assert_eq!(hint.actions[0].action_type, "kv.future_action");
         assert_eq!(serde_json::to_value(hint).unwrap(), value);
+    }
+
+    #[test]
+    fn merge_preserves_protocol_and_router_actions_once() {
+        let retain = KvHint::new(
+            "request-1",
+            vec![
+                KvHintAction::new("retain-1", "kv.retain_prefix", "1.0", BTreeMap::new()),
+                KvHintAction::new(
+                    "fetch-1",
+                    "kv.fetch",
+                    "1.0",
+                    BTreeMap::from([("source".to_string(), serde_json::json!("stale"))]),
+                ),
+            ],
+        );
+        let fetch = KvHint::new(
+            "request-1",
+            vec![KvHintAction::new(
+                "fetch-1",
+                "kv.fetch",
+                "1.0",
+                BTreeMap::from([("source".to_string(), serde_json::json!("selected"))]),
+            )],
+        );
+
+        let merged = merge_kv_hints(Some(retain), Some(fetch)).unwrap();
+
+        assert_eq!(merged.message_id, "request-1");
+        assert_eq!(merged.actions.len(), 2);
+        assert_eq!(merged.actions[0].action_type, "kv.retain_prefix");
+        assert_eq!(merged.actions[1].action_type, "kv.fetch");
+        assert_eq!(merged.actions[1].payload["source"], "selected");
     }
 
     #[test]
