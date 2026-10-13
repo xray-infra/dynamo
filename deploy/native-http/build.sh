@@ -12,8 +12,12 @@ BUILD_JOBS="${BUILD_JOBS:-8}"
 REPO_ROOT="$(git rev-parse --show-toplevel)"
 REVISION="$(git rev-parse HEAD)"
 mkdir -p "$REPO_ROOT/target"
+REGISTRY_ARGS=()
+if [[ -n "${BUILD_REGISTRY_CACHE:-}" ]]; then
+    REGISTRY_ARGS=(-v "$BUILD_REGISTRY_CACHE:/root/.cargo/registry")
+fi
 
-docker run --rm --runtime=runc --network=none \
+docker run --rm --runtime=runc --network=none "${REGISTRY_ARGS[@]}" \
     --cpus="$BUILD_JOBS" --memory=20g \
     -e NVIDIA_VISIBLE_DEVICES=void \
     -e RUSTUP_TOOLCHAIN="$BUILD_RUST_TOOLCHAIN" \
