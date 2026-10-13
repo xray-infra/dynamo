@@ -1418,7 +1418,10 @@ pub fn chat_completion_to_response(
         usage: chat_resp.usage.map(|u| ResponseUsage {
             input_tokens: u.prompt_tokens,
             input_tokens_details: InputTokenDetails {
-                cache_write_tokens: None,
+                cache_write_tokens: u
+                    .prompt_tokens_details
+                    .as_ref()
+                    .and_then(|d| d.cache_write_tokens),
                 cached_tokens: u
                     .prompt_tokens_details
                     .map(|d| d.cached_tokens.unwrap_or(0))

@@ -558,13 +558,21 @@ pub(super) fn completion_usage_to_anthropic(usage: &CompletionUsage) -> Anthropi
         // An explicitly reported zero is known accounting, not missing usage.
         .map(|tokens| tokens.min(usage.prompt_tokens));
 
+    let cache_creation_input_tokens = usage
+        .prompt_tokens_details
+        .as_ref()
+        .and_then(|details| details.cache_write_tokens)
+        .and_then(|tokens| u32::try_from(tokens).ok());
+
     AnthropicUsage {
+        // Anthropic input excludes both the native read and created subsets.
         input_tokens: usage
             .prompt_tokens
-            .saturating_sub(cache_read_input_tokens.unwrap_or(0)),
+            .saturating_sub(cache_read_input_tokens.unwrap_or(0))
+            .saturating_sub(cache_creation_input_tokens.unwrap_or(0)),
         output_tokens: usage.completion_tokens,
-        // Generic OpenAI usage has no write count. Missing is not a measured zero.
-        cache_creation_input_tokens: None,
+        // Preserve known zero; missing native write metering remains unknown.
+        cache_creation_input_tokens,
         cache_read_input_tokens,
     }
 }
@@ -1454,6 +1462,33 @@ mod tests {
             } else {
                 assert!(value.get("cache_read_input_tokens").is_none());
             }
+        }
+    }
+
+    #[test]
+    fn test_anthropic_projects_native_cache_writes_without_double_counting() {
+        for (read, written, input) in [(0, 4096, 846), (4096, 0, 846)] {
+            let native = CompletionUsage {
+                prompt_tokens: 4942,
+                completion_tokens: 2,
+                total_tokens: 4944,
+                prompt_tokens_details: Some(dynamo_protocols::types::PromptTokensDetails {
+                    cached_tokens: Some(read),
+                    cache_write_tokens: Some(written),
+                    ..Default::default()
+                }),
+                completion_tokens_details: None,
+            };
+            let projected = completion_usage_to_anthropic(&native);
+            assert_eq!(projected.input_tokens, input);
+            assert_eq!(projected.cache_read_input_tokens, Some(read));
+            assert_eq!(projected.cache_creation_input_tokens, Some(written as u32));
+            assert_eq!(
+                projected.input_tokens
+                    + projected.cache_read_input_tokens.unwrap()
+                    + projected.cache_creation_input_tokens.unwrap(),
+                native.prompt_tokens
+            );
         }
     }
 

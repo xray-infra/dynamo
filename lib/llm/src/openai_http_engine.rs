@@ -136,7 +136,29 @@ fn worker_request(mut request: NvCreateChatCompletionRequest) -> anyhow::Result<
 }
 
 fn decode_event(data: &str) -> anyhow::Result<NvCreateChatCompletionStreamResponse> {
-    let chunk: NvCreateChatCompletionStreamResponse = serde_json::from_str(data)?;
+    let mut wire: Value = serde_json::from_str(data)?;
+    let prompt_tokens = wire.pointer("/usage/prompt_tokens").and_then(Value::as_u64);
+    if let Some(details) = wire
+        .pointer_mut("/usage/prompt_tokens_details")
+        .and_then(Value::as_object_mut)
+    {
+        // vLLM 0.26 HTTP-worker compatibility within the supported N-2 window.
+        // Retire this input-only alias when those worker revisions leave the window.
+        // The canonical representation wins, including an explicit null.
+        if let Some(written) = details.remove("created_cache_tokens") {
+            details.entry("cache_write_tokens").or_insert(written);
+        }
+        if let Some(written) = details.get("cache_write_tokens").filter(|v| !v.is_null()) {
+            ensure!(
+                written
+                    .as_u64()
+                    .zip(prompt_tokens)
+                    .is_some_and(|(written, prompt)| written <= prompt),
+                "invalid native cache-write token count"
+            );
+        }
+    }
+    let chunk: NvCreateChatCompletionStreamResponse = serde_json::from_value(wire)?;
     // Required identity comes from the backend, never a synthesized template.
     ensure!(
         !chunk.inner.id.is_empty() && !chunk.inner.model.is_empty(),
@@ -320,6 +342,48 @@ mod tests {
         }
         let no_key = json!({"model":"glm-5.3-flash"});
         assert_ne!(engine.worker_index(&no_key), engine.worker_index(&no_key));
+    }
+
+    #[test]
+    fn native_write_usage_normalizes_legacy_counts_without_inventing_them() {
+        for (details, expected) in [
+            (json!({"created_cache_tokens": 24}), Some(24)),
+            (json!({"created_cache_tokens": 0}), Some(0)),
+            (
+                json!({"cache_write_tokens": 7, "created_cache_tokens": 24}),
+                Some(7),
+            ),
+            (
+                json!({"cache_write_tokens": null, "created_cache_tokens": 24}),
+                None,
+            ),
+            (json!({}), None),
+        ] {
+            let raw = json!({"id":"native", "object":"chat.completion.chunk",
+                "created":7, "model":"glm-5.3-flash", "choices":[],
+                "usage":{"prompt_tokens":100,"completion_tokens":7,"total_tokens":107,
+                    "prompt_tokens_details":details}});
+            let chunk = decode_event(&raw.to_string()).unwrap();
+            let encoded = serde_json::to_value(chunk).unwrap();
+            assert_eq!(
+                encoded
+                    .pointer("/usage/prompt_tokens_details/cache_write_tokens")
+                    .and_then(Value::as_i64),
+                expected
+            );
+            assert!(
+                encoded
+                    .pointer("/usage/prompt_tokens_details/created_cache_tokens")
+                    .is_none()
+            );
+        }
+        for invalid in [json!(-1), json!(101), json!("24"), json!(true)] {
+            let raw = json!({"id":"native", "object":"chat.completion.chunk",
+                "created":7, "model":"glm-5.3-flash", "choices":[],
+                "usage":{"prompt_tokens":100,"completion_tokens":7,"total_tokens":107,
+                    "prompt_tokens_details":{"created_cache_tokens":invalid}}});
+            assert!(decode_event(&raw.to_string()).is_err());
+        }
     }
 
     #[test]
