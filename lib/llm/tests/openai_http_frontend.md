@@ -62,14 +62,25 @@ choice terminals, oversized events, and DONE without every choice terminal are
 errors, not fabricated successful completions. There is no inference retry after
 an ambiguous backend response.
 
-Anthropic projection preserves explicitly known cache-read zero while absent
-native cache-read remains absent. Input tokens exclude the native cached subset.
-Cache-write behavior is the upstream OpenAI-to-Anthropic policy: OpenAI's typed
-usage has no cache-write count and upstream emits `cache_creation_input_tokens=0`.
-This is not proof of a backend-created-cache extension, explicit 5m/1h TTL, signed
-accounting, or physical cache residency. Those retired features are not implemented
-or claimed by this adapter; live cache billing/residency still needs separate
-verification against actual workers.
+Native cache-write accounting is optional, not a derived prefill-miss count.
+At the HTTP worker boundary, vLLM 0.26's
+`usage.prompt_tokens_details.created_cache_tokens` is normalized to the SDK's
+`cache_write_tokens`; a supplied canonical field wins, including explicit null.
+Absent accounting stays absent and measured zero stays zero. Negative, non-integer
+or greater-than-prompt write counts are rejected. Retire the input alias when
+these worker revisions leave the supported N-2 window.
+
+Chat unary/stream serialization preserves that canonical field. A bounded output
+shim compensates for dynamo-protocols 8.1.0's usage shadow dropping it; remove the
+shim after upgrading to a dependency that preserves the field. It borrows the
+response envelope/choices and materializes only the fixed-size usage object.
+Responses unary/stream conversion projects the count to
+`usage.input_tokens_details.cache_write_tokens`. Anthropic unary/stream conversion
+projects it to `cache_creation_input_tokens`; `input_tokens` excludes both native
+read and created subsets. Neither projection invents a write count when absent.
+These counters do not by themselves prove TTL, durable residency or a monetary
+bill; live worker accounting semantics and authoritative billing require separate
+verification.
 
 ## CPU regression (actual PR code)
 
@@ -80,10 +91,10 @@ cargo test --locked -p dynamo-llm --no-default-features --test openai_http_trans
 ```
 
 The Rust integration test starts the compiled frontend and a loopback worker
-fixture. It covers text/tool × unary/streaming × OpenAI/Anthropic (eight cases),
-native usage/envelope fidelity, disjoint cached/input accounting, tool name/ID/JSON
-arguments, fragmented mixed LF/CRLF transport, and actual protocol terminal events.
-All eight forms assert that a public tenant header overrides the body namespace
+fixture. It covers text/tool × unary/streaming × Chat/Responses/Anthropic (12 cases),
+native read/write usage and envelope fidelity, disjoint input/read/write accounting,
+tool name/ID/JSON arguments, fragmented mixed LF/CRLF transport, and actual protocol
+terminal events. All 12 forms assert that a public tenant header overrides the body namespace
 and reaches the worker's native `cache_salt` field. A library regression covers
 canonical/legacy precedence, empty canonical fallback and absent salt.
 The fixture cannot prove GPU prefix-cache hits, model behavior, live billing,

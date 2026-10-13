@@ -272,11 +272,68 @@ fn openai_thinking_mode(value: &serde_json::Value) -> anyhow::Result<Option<Open
     }
 }
 
+// dynamo-protocols 8.1.0's usage shadow omits the SDK cache_write_tokens field.
+// Remove this output shim once that dependency's usage serializer preserves it.
+// Borrow the completion envelope/choices; only the fixed-size usage object is
+// materialized, never the generated content or the entire response JSON.
+macro_rules! cache_write_completion_serializer {
+    ($name:ident, $response:ty) => {
+        fn $name<S: serde::Serializer>(
+            response: &$response,
+            serializer: S,
+        ) -> Result<S::Ok, S::Error> {
+            use serde::ser::SerializeMap;
+            let Some(usage) = response.usage.as_ref().filter(|u| {
+                u.prompt_tokens_details
+                    .as_ref()
+                    .and_then(|d| d.cache_write_tokens)
+                    .is_some()
+            }) else {
+                return response.serialize(serializer);
+            };
+            let mut usage = serde_json::to_value(usage).map_err(serde::ser::Error::custom)?;
+            for key in ["prompt_tokens_details", "completion_tokens_details"] {
+                if let Some(details) = usage
+                    .get_mut(key)
+                    .and_then(serde_json::Value::as_object_mut)
+                {
+                    details.retain(|_, value| !value.is_null());
+                }
+            }
+            if let Some(fields) = usage.as_object_mut() {
+                fields.retain(|_, value| !value.is_null());
+            }
+            let mut map = serializer.serialize_map(None)?;
+            map.serialize_entry("id", &response.id)?;
+            map.serialize_entry("choices", &response.choices)?;
+            map.serialize_entry("created", &response.created)?;
+            map.serialize_entry("model", &response.model)?;
+            map.serialize_entry("object", &response.object)?;
+            if let Some(tier) = &response.service_tier {
+                map.serialize_entry("service_tier", tier)?;
+            }
+            if let Some(fingerprint) = &response.system_fingerprint {
+                map.serialize_entry("system_fingerprint", fingerprint)?;
+            }
+            map.serialize_entry("usage", &usage)?;
+            map.end()
+        }
+    };
+}
+cache_write_completion_serializer!(
+    serialize_completion_cache_write,
+    dynamo_protocols::types::CreateChatCompletionResponse
+);
+cache_write_completion_serializer!(
+    serialize_stream_cache_write,
+    dynamo_protocols::types::CreateChatCompletionStreamResponse
+);
+
 /// A response structure for unary chat completion responses, embedding OpenAI's
 /// `CreateChatCompletionResponse` with optional NVIDIA extension metadata.
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 pub struct NvCreateChatCompletionResponse {
-    #[serde(flatten)]
+    #[serde(flatten, serialize_with = "serialize_completion_cache_write")]
     pub inner: dynamo_protocols::types::CreateChatCompletionResponse,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub prompt_logprobs: Option<Arc<crate::protocols::common::llm_backend::PromptLogprobs>>,
@@ -296,7 +353,7 @@ pub struct ToolCallCompletion {
 /// `CreateChatCompletionStreamResponse` with optional NVIDIA extension metadata.
 #[derive(Serialize, Deserialize, Debug, Clone, PartialEq)]
 pub struct NvCreateChatCompletionStreamResponse {
-    #[serde(flatten)]
+    #[serde(flatten, serialize_with = "serialize_stream_cache_write")]
     pub inner: dynamo_protocols::types::CreateChatCompletionStreamResponse,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub nvext: Option<serde_json::Value>,

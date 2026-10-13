@@ -26,8 +26,12 @@ USAGE = {
     "prompt_tokens": 100,
     "completion_tokens": 7,
     "total_tokens": 107,
-    "prompt_tokens_details": {"cached_tokens": 60},
+    "prompt_tokens_details": {"cached_tokens": 60, "created_cache_tokens": 24},
     "completion_tokens_details": {"reasoning_tokens": 2},
+}
+EXPECTED_USAGE = {
+    **USAGE,
+    "prompt_tokens_details": {"cached_tokens": 60, "cache_write_tokens": 24},
 }
 
 
@@ -144,7 +148,7 @@ def check_chat(raw, streaming, tool):
         message = response["choices"][0]["message"]
         text = message.get("content") or ""
         calls = message.get("tool_calls") or []
-    assert usage[0] == USAGE, usage
+    assert usage[0] == EXPECTED_USAGE, usage
     if tool:
         assert calls[0]["id"] == "call_native_1", calls
         assert calls[0]["function"]["name"] == "echo", calls
@@ -186,10 +190,10 @@ def check_messages(raw, streaming, tool):
         usage, blocks = response["usage"], response["content"]
         text = "".join(block.get("text", "") for block in blocks)
         arguments = None
-    assert usage["input_tokens"] == 40, usage
+    assert usage["input_tokens"] == 16, usage
     assert usage["output_tokens"] == 7, usage
     assert usage["cache_read_input_tokens"] == 60, usage
-    assert usage["cache_creation_input_tokens"] == 0, usage
+    assert usage["cache_creation_input_tokens"] == 24, usage
     if tool:
         block = next(block for block in blocks if block["type"] == "tool_use")
         assert block["id"] and block["name"] == "echo", block
@@ -197,6 +201,40 @@ def check_messages(raw, streaming, tool):
             "text": "OK"
         }
     else:
+        assert text == "OK", text
+
+
+def check_responses(raw, streaming, tool):
+    if streaming:
+        wire = events(raw)
+        data = [json.loads(value) for value in wire if value != "[DONE]"]
+        assert not any(event["type"] in ["error", "response.failed"] for event in data)
+        completed = [event for event in data if event["type"] == "response.completed"]
+        assert len(completed) == 1, raw
+        response = completed[0]["response"]
+    else:
+        response = json.loads(raw)
+    assert response["status"] == "completed", response
+    usage = response["usage"]
+    assert usage["input_tokens"] == 100, usage
+    assert usage["output_tokens"] == 7, usage
+    assert usage["total_tokens"] == 107, usage
+    assert usage["input_tokens_details"]["cached_tokens"] == 60, usage
+    assert usage["input_tokens_details"]["cache_write_tokens"] == 24, usage
+    if tool:
+        call = next(
+            item for item in response["output"] if item["type"] == "function_call"
+        )
+        assert call["call_id"] and call["name"] == "echo", call
+        assert json.loads(call["arguments"]) == {"text": "OK"}, call
+    else:
+        text = "".join(
+            part["text"]
+            for item in response["output"]
+            if item["type"] == "message"
+            for part in item["content"]
+            if part["type"] == "output_text"
+        )
         assert text == "OK", text
 
 
@@ -246,7 +284,7 @@ def main():
                     "properties": {"text": {"type": "string"}},
                     "required": ["text"],
                 }
-                for protocol in ["chat", "messages"]:
+                for protocol in ["chat", "messages", "responses"]:
                     for tool in [False, True]:
                         for streaming in [False, True]:
                             body = {
@@ -277,6 +315,26 @@ def main():
                                     )
                                 check = check_chat
                                 path = "/v1/chat/completions"
+                            elif protocol == "responses":
+                                body["input"] = "Return OK"
+                                body["max_output_tokens"] = body.pop("max_tokens")
+                                body.pop("messages")
+                                if tool:
+                                    body.update(
+                                        tools=[
+                                            {
+                                                "type": "function",
+                                                "name": "echo",
+                                                "parameters": schema,
+                                            }
+                                        ],
+                                        tool_choice={
+                                            "type": "function",
+                                            "name": "echo",
+                                        },
+                                    )
+                                check = check_responses
+                                path = "/v1/responses"
                             else:
                                 if tool:
                                     body.update(

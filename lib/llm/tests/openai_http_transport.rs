@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 
 #[test]
-fn upstream_http_transport_preserves_both_protocols_and_request_modes() {
+fn upstream_http_transport_preserves_all_protocols_and_request_modes() {
     let script = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
         .join("../../scripts/check_openai_http_frontend.py");
     let output = std::process::Command::new("python3")
@@ -19,5 +19,5 @@ fn upstream_http_transport_preserves_both_protocols_and_request_modes() {
     );
     let report: serde_json::Value = serde_json::from_slice(&output.stdout).unwrap();
     assert_eq!(report["fixture_only"], true);
-    assert_eq!(report["passed"], 8);
+    assert_eq!(report["passed"], 12);
 }
