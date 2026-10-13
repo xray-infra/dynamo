@@ -213,6 +213,11 @@ tokio-rustls = { version = "0.26" }
 rustls = { version = "0.23", default-features = false, features = ["ring", "std"] }
 rustls-pemfile = { version = "2" }
 
+[patch.crates-io]
+dynamo-protocols = { git = "https://github.com/zhongtian-ai/frontend-crates.git", rev = "4c621f98b9f281ca882806e41b6cf40ae13d9f3c" }
+dynamo-renderer = { git = "https://github.com/zhongtian-ai/frontend-crates.git", rev = "4c621f98b9f281ca882806e41b6cf40ae13d9f3c" }
+dynamo-tokenizers = { git = "https://github.com/zhongtian-ai/frontend-crates.git", rev = "4c621f98b9f281ca882806e41b6cf40ae13d9f3c" }
+
 [profile.dev.package]
 insta.opt-level = 3
 

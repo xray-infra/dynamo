@@ -28,7 +28,10 @@ use dynamo_protocols::types::{
     ChatCompletionRequestUserMessageContent, ChatCompletionRequestUserMessageContentPart,
     ChatCompletionToolChoiceOption, EncodingFormat,
 };
-use dynamo_renderer::{OAIPromptFormatter, PromptRenderError, RenderedPrompt};
+use dynamo_renderer::{
+    OAIPromptFormatter, PromptBoundaryTarget, PromptRenderError, RenderedPrompt,
+    RenderedPromptWithBoundaries,
+};
 use dynamo_runtime::config::{
     env_is_falsey, environment_names::llm as env_llm, is_truthy, parse_bool_opt,
 };
@@ -70,7 +73,8 @@ use crate::model_card::{ModelDeploymentCard, ModelInfo, PromptFormatterArtifact}
 use crate::preprocessor::media::MediaFetcher;
 use crate::preprocessor::media::{MediaDecoder, MediaLoader, max_data_url_bytes};
 use crate::protocols::common::preprocessor::{
-    MultimodalData, MultimodalDataMap, MultimodalUuidMap, PreprocessedRequestBuilder, RoutingHints,
+    KvHint, KvHintAction, MultimodalData, MultimodalDataMap, MultimodalUuidMap,
+    PreprocessedRequestBuilder, RoutingHints,
 };
 use crate::protocols::common::timing::RequestTracker;
 use crate::tokenizers::Encoding;
@@ -2969,6 +2973,7 @@ impl OpenAIPreprocessor {
                 tracker,
                 PreprocessRequestOptions::default(),
                 None,
+                None,
             )
             .await?;
         Ok((request, annotations, prompt_injected_reasoning))
@@ -2989,6 +2994,10 @@ impl OpenAIPreprocessor {
         tracker: Option<&RequestTracker>,
         options: PreprocessRequestOptions,
         lora_name: Option<String>,
+        cache_control: Option<(
+            &str,
+            &[crate::http::service::anthropic_cache_control::CacheControlTarget],
+        )>,
     ) -> Result<(
         PreprocessedRequest,
         HashMap<String, String>,
@@ -3000,10 +3009,24 @@ impl OpenAIPreprocessor {
         let mut builder = self.builder_with_lora(request, lora_name)?;
 
         let template_start = Instant::now();
-        let formatted_prompt = {
+        let (formatted_prompt, rendered_boundaries) = {
             let _nvtx = dynamo_nvtx_range!("preprocess.template");
-            off_runtime(|| self.apply_template(request))
-                .with_context(|| "Failed to apply prompt template")?
+            if let Some((_, cache_targets)) = cache_control {
+                let targets = cache_targets
+                    .iter()
+                    .map(|target| target.target.clone())
+                    .collect::<Vec<_>>();
+                let rendered =
+                    off_runtime(|| self.apply_template_with_boundaries(request, &targets))
+                        .with_context(|| "Failed to prove cache_control prompt boundaries")?;
+                (Some(rendered.prompt.clone()), Some(rendered))
+            } else {
+                (
+                    off_runtime(|| self.apply_template(request))
+                        .with_context(|| "Failed to apply prompt template")?,
+                    None,
+                )
+            }
         };
         TEMPLATE_SECONDS.observe(template_start.elapsed().as_secs_f64());
 
@@ -3024,6 +3047,17 @@ impl OpenAIPreprocessor {
                 .with_context(|| "Failed to gather tokens")?
         };
         TOKENIZE_SECONDS.observe(tokenize_start.elapsed().as_secs_f64());
+
+        let cache_hint = if let (Some((message_id, cache_targets)), Some(rendered)) =
+            (cache_control, rendered_boundaries.as_ref())
+        {
+            Some(
+                self.prove_cache_control_prefixes(message_id, cache_targets, rendered, &token_ids)
+                    .await?,
+            )
+        } else {
+            None
+        };
 
         let (_mm_routing_entries, image_tokens) = self
             .gather_multi_modal_data_with_image_tokens(
@@ -3051,6 +3085,9 @@ impl OpenAIPreprocessor {
         }
 
         let mut preprocessed = builder.build()?;
+        if let Some(cache_hint) = cache_hint {
+            preprocessed.kv_hint = Some(cache_hint);
+        }
         if let Some(reasoning_ended) = Self::prompt_injected_reasoning_ended_arg(
             self.runtime_config.reasoning_parser.as_deref(),
             formatted_prompt.as_ref().map(RenderedPrompt::as_str),
@@ -3438,6 +3475,128 @@ impl OpenAIPreprocessor {
         apply_continue_final_message(prompt)
             .map_err(|error| invalid_argument_error(format!("{error:#}")))
             .map(Some)
+    }
+
+    fn apply_template_with_boundaries<
+        R: OAIChatLikeRequest
+            + AnnotationsProvider
+            + SamplingOptionsProvider
+            + StopConditionsProvider
+            + OutputOptionsProvider
+            + NvExtProvider
+            + CommonExtProvider,
+    >(
+        &self,
+        request: &R,
+        targets: &[PromptBoundaryTarget],
+    ) -> Result<RenderedPromptWithBoundaries> {
+        if request.get_continue_final_message() == Some(true) {
+            return Err(invalid_argument_error(
+                "cache_control is incompatible with continue_final_message",
+            ));
+        }
+        if request
+            .nvext()
+            .is_some_and(|ext| ext.use_raw_prompt.unwrap_or(false))
+            || request.raw_prompt().is_some()
+        {
+            return Err(invalid_argument_error(
+                "cache_control is incompatible with raw prompt rendering",
+            ));
+        }
+        if !matches!(request.prompt_input_type(), PromptInput::Text(_))
+            || !matches!(request.extract_text(), Some(TextInput::Single(_)))
+        {
+            return Err(invalid_argument_error(
+                "cache_control requires a formatter-owned text prompt",
+            ));
+        }
+
+        let rendered = if self.normalize_tool_call_args {
+            self.formatter.render_prompt_with_boundaries(
+                &NormalizedArgsRequest {
+                    inner: request,
+                    normalize_tool_call_args: true,
+                    continue_final_message: false,
+                },
+                targets,
+            )
+        } else {
+            self.formatter
+                .render_prompt_with_boundaries(request, targets)
+        };
+        rendered.map_err(Self::map_prompt_render_error)
+    }
+
+    async fn prove_cache_control_prefixes(
+        &self,
+        message_id: &str,
+        targets: &[crate::http::service::anthropic_cache_control::CacheControlTarget],
+        rendered: &RenderedPromptWithBoundaries,
+        full_token_ids: &[TokenIdType],
+    ) -> Result<KvHint> {
+        if rendered.boundaries.len() != targets.len() {
+            return Err(invalid_argument_error(
+                "cache_control formatter returned an incomplete boundary set",
+            ));
+        }
+
+        let mut actions = Vec::with_capacity(targets.len());
+        let mut previous_count = 0usize;
+        for (target, boundary) in targets.iter().zip(&rendered.boundaries) {
+            if boundary.id() != target.target.id {
+                return Err(invalid_argument_error(
+                    "cache_control formatter returned boundaries out of order",
+                ));
+            }
+            let prefix = rendered
+                .prompt
+                .prefix_at(boundary)
+                .map_err(Self::map_prompt_render_error)?;
+            let encoding = self
+                .encode_prompt_with_timing(Some(&prefix), prefix.as_str(), None)
+                .await
+                .map_err(|error| {
+                    invalid_argument_error(format!(
+                        "cache_control prefix tokenization failed: {error:#}"
+                    ))
+                })?;
+            let prefix_ids = encoding.token_ids();
+            let prefix_count = prefix_ids.len();
+            if prefix_count == 0 {
+                return Err(invalid_argument_error(
+                    "cache_control boundary produced an empty worker token prefix",
+                ));
+            }
+            if prefix_count <= previous_count {
+                return Err(invalid_argument_error(
+                    "cache_control worker token prefixes are not strictly increasing",
+                ));
+            }
+            if prefix_count > full_token_ids.len() || prefix_ids != &full_token_ids[..prefix_count]
+            {
+                return Err(invalid_argument_error(
+                    "cache_control boundary is not an exact worker token prefix",
+                ));
+            }
+            previous_count = prefix_count;
+            actions.push(KvHintAction::new(
+                target.target.id.clone(),
+                "kv.retain_prefix",
+                "1.0",
+                std::collections::BTreeMap::from([
+                    (
+                        "duration_seconds".to_string(),
+                        serde_json::json!(target.duration_seconds),
+                    ),
+                    (
+                        "prefix_token_count".to_string(),
+                        serde_json::json!(prefix_count),
+                    ),
+                ]),
+            ));
+        }
+        Ok(KvHint::new(message_id, actions))
     }
 
     fn apply_template_inner<
@@ -7640,6 +7799,13 @@ impl
                 .is_some_and(|flag| *flag),
         };
 
+        let cache_control_targets = context
+            .get_optional::<Vec<crate::http::service::anthropic_cache_control::CacheControlTarget>>(
+                crate::http::service::anthropic_cache_control::CACHE_CONTROL_CONTEXT_KEY,
+            )
+            .ok()
+            .flatten();
+
         // convert the chat completion request to a common completion request
         let (mut common_request, annotations, prompt_injected_reasoning, image_tokens) = self
             .preprocess_request_with_options(
@@ -7651,6 +7817,9 @@ impl
                     .ok()
                     .flatten()
                     .map(|name| name.as_ref().clone()),
+                cache_control_targets
+                    .as_deref()
+                    .map(|targets| (context.id(), targets.as_slice())),
             )
             .instrument(preprocessing.clone())
             .await?;
@@ -13726,6 +13895,109 @@ mod tests {
         .unwrap()
         {
             dynamo_renderer::PromptFormatter::OAI(formatter) => formatter,
+        }
+    }
+
+    #[tokio::test]
+    async fn anthropic_cache_control_real_formatter_proves_exact_worker_prefixes() {
+        let card = ModelDeploymentCard::load_from_disk(
+            "tests/data/sample-models/mock-llama-3.1-8b-instruct",
+            None,
+        )
+        .unwrap();
+        let preprocessor = OpenAIPreprocessor::new(card).unwrap();
+        let mut preprocessor = Arc::try_unwrap(preprocessor)
+            .unwrap_or_else(|_| panic!("test preprocessor unexpectedly shared"));
+        // Exercise the production HF/MiniJinja boundary instrumentation while rendering every
+        // normalized tool and message leaf. The mock Llama card's bundled template intentionally
+        // ignores tools and therefore correctly fails provenance for tool breakpoints.
+        preprocessor.formatter = test_prompt_formatter(
+            "{%- if tools -%}{%- for tool in tools -%}\
+             {{- tool.function.parameters|tojson -}}<|eot_id|>\
+             {%- if tool.function.description -%}{{- tool.function.description -}}<|eot_id|>{%- endif -%}\
+             {{- tool.function.name -}}<|eot_id|>{{- tool.type -}}<|eot_id|>\
+             {%- endfor -%}{%- endif -%}\
+             {%- for message in messages -%}\
+             {{- message.role -}}<|eot_id|>\
+             {%- if message.tool_call_id -%}{{- message.tool_call_id -}}<|eot_id|>{%- endif -%}\
+             {%- if message.content -%}{{- message.content -}}<|eot_id|>{%- endif -%}\
+             {%- if message.tool_calls -%}{%- for call in message.tool_calls -%}\
+             {{- call.id -}}<|eot_id|>{{- call.type -}}<|eot_id|>\
+             {{- call.function.name -}}<|eot_id|>{{- call.function.arguments -}}<|eot_id|>\
+             {%- endfor -%}{%- endif -%}\
+             {%- endfor -%}",
+        );
+        let control_5m = serde_json::json!({"type":"ephemeral","ttl":"5m"});
+        let control_1h = serde_json::json!({"type":"ephemeral","ttl":"1h"});
+        let cases = [
+            serde_json::json!({
+                "model":"test-model", "max_tokens":1,
+                "tools":[{"name":"lookup","description":"Lookup JSON","input_schema":{"type":"object","properties":{"query":{"type":"string"}}},"cache_control":control_5m}],
+                "messages":[{"role":"user","content":"find weather"}]
+            }),
+            serde_json::json!({
+                "model":"test-model", "max_tokens":1,
+                "system":[
+                    {"type":"text","text":"first system block with several words"},
+                    {"type":"text","text":"second system block with several words","cache_control":control_5m}
+                ],
+                "messages":[{"role":"user","content":"hello"}]
+            }),
+            serde_json::json!({
+                "model":"test-model", "max_tokens":1,
+                "messages":[{"role":"user","content":[
+                    {"type":"text","text":"first text block <|eot_id|>","cache_control":control_1h},
+                    {"type":"text","text":"second text block <|eot_id|>","cache_control":control_5m}
+                ]}]
+            }),
+            serde_json::json!({
+                "model":"test-model", "max_tokens":1,
+                "tools":[{"name":"lookup","input_schema":{"type":"object"}}],
+                "messages":[
+                    {"role":"user","content":"do both"},
+                    {"role":"assistant","content":[
+                        {"type":"tool_use","id":"call-a","name":"lookup","input":{"query":"alpha"}},
+                        {"type":"tool_use","id":"call-b","name":"lookup","input":{"query":"beta"},"cache_control":control_5m}
+                    ]},
+                    {"role":"user","content":[{"type":"tool_result","tool_use_id":"call-b","content":"result text","cache_control":control_5m}]}
+                ]
+            }),
+        ];
+
+        for (case_index, raw) in cases.into_iter().enumerate() {
+            let targets =
+                crate::http::service::anthropic_cache_control::lower_cache_control(&raw).unwrap();
+            let request: crate::protocols::anthropic::AnthropicCreateMessageRequest =
+                serde_json::from_value(raw).unwrap();
+            let unified = crate::protocols::unified::UnifiedRequest::try_from(request).unwrap();
+            let chat = unified.into_inner();
+            let (processed, _, _, _) = preprocessor
+                .preprocess_request_with_options(
+                    &chat,
+                    None,
+                    PreprocessRequestOptions::default(),
+                    None,
+                    Some(("request-id", &targets)),
+                )
+                .await
+                .unwrap_or_else(|error| panic!("case {case_index} failed: {error:#}"));
+            let hint = processed
+                .kv_hint
+                .expect("cache hint is attached atomically");
+            assert_eq!(hint.actions.len(), targets.len());
+            let mut previous = 0;
+            for (action, target) in hint.actions.iter().zip(&targets) {
+                assert_eq!(action.action_id, target.target.id);
+                assert_eq!(action.action_type, "kv.retain_prefix");
+                assert_eq!(
+                    action.payload["duration_seconds"],
+                    serde_json::json!(target.duration_seconds)
+                );
+                let count = action.payload["prefix_token_count"].as_u64().unwrap() as usize;
+                assert!(count > previous);
+                assert!(count <= processed.token_ids.len());
+                previous = count;
+            }
         }
     }
 

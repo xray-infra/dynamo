@@ -367,8 +367,11 @@ fn validate_anthropic_tools(
 async fn handler_anthropic_messages(
     State((state, template)): State<(Arc<service_v2::State>, Option<RequestTemplate>)>,
     headers: HeaderMap,
-    Json(mut request): Json<AnthropicCreateMessageRequest>,
+    Json(raw_request): Json<serde_json::Value>,
 ) -> Result<Response, Response> {
+    let cache_control_targets = super::anthropic_cache_control::lower_cache_control(&raw_request);
+    let mut request: AnthropicCreateMessageRequest = serde_json::from_value(raw_request)
+        .map_err(|error| AnthropicHandlerError::validation(error.to_string()).into_response())?;
     let request_id = get_or_create_request_id(&headers);
     let streaming = request.stream;
     let resolved_model = resolve_request_model(&request.model, template.as_ref());
@@ -383,6 +386,9 @@ async fn handler_anthropic_messages(
         streaming,
         &request_id,
     );
+    let cache_control_targets = cache_control_targets.map_err(|error| {
+        AnthropicHandlerError::validation(error).into_marked_response(&mut inflight_guard)
+    })?;
 
     validate_anthropic_messages(&request.messages).map_err(|error| {
         AnthropicHandlerError::from_request_validation(error)
@@ -392,40 +398,6 @@ async fn handler_anthropic_messages(
         AnthropicHandlerError::from_request_validation(error)
             .into_marked_response(&mut inflight_guard)
     })?;
-    // This Messages-to-Chat path has no backend TTL/breakpoint contract.
-    // Reject explicit controls before conversion discards them; default APC
-    // and its native usage remain unchanged.
-    let explicit_cache_control = request.cache_control.is_some()
-        || request
-            .system
-            .as_ref()
-            .is_some_and(|system| system.cache_control.is_some())
-        || request
-            .tools
-            .as_ref()
-            .is_some_and(|tools| tools.iter().any(|tool| tool.cache_control.is_some()))
-        || request
-            .messages
-            .iter()
-            .any(|message| match &message.content {
-                AnthropicMessageContent::Text { .. } => false,
-                AnthropicMessageContent::Blocks { content } => {
-                    content.iter().any(|block| match block {
-                        AnthropicContentBlock::Text { cache_control, .. }
-                        | AnthropicContentBlock::ToolUse { cache_control, .. }
-                        | AnthropicContentBlock::ToolResult { cache_control, .. }
-                        | AnthropicContentBlock::Thinking { cache_control, .. } => {
-                            cache_control.is_some()
-                        }
-                        _ => false,
-                    })
-                }
-            });
-    if explicit_cache_control {
-        return Err(AnthropicHandlerError::validation(
-            "cache_control is not supported by this Messages-to-Chat backend path; automatic prefix caching remains available",
-        ).into_marked_response(&mut inflight_guard));
-    }
     if request.max_tokens == 0 {
         return Err(
             AnthropicHandlerError::validation("max_tokens: must be greater than 0")
@@ -453,7 +425,13 @@ async fn handler_anthropic_messages(
         )
         .into_marked_response(&mut inflight_guard)
     })?;
-    let mut request = Context::with_id_and_metadata(request, request_id, metadata);
+    let mut request = Context::with_id_and_metadata(request, request_id.clone(), metadata);
+    if !cache_control_targets.is_empty() {
+        request.insert(
+            super::anthropic_cache_control::CACHE_CONTROL_CONTEXT_KEY,
+            cache_control_targets,
+        );
+    }
     attach_x_request_id(&mut request, &headers);
     if let Some(mut agent_context) = agent_context_from_headers(&headers) {
         agent_context.input_trigger = Some(classify_anthropic_request(request.content()));
@@ -522,7 +500,21 @@ async fn anthropic_messages(
         }
     }
 
-    // Strip Claude Code billing preamble from system prompt if enabled
+    // The billing-preamble transform changes source-owned bytes before rendering. Exact cache
+    // coordinates deliberately fail closed rather than pretending the transformed prompt is the
+    // source prefix requested by the client.
+    if state.strip_anthropic_preamble_enabled()
+        && request
+            .get::<Vec<super::anthropic_cache_control::CacheControlTarget>>(
+                super::anthropic_cache_control::CACHE_CONTROL_CONTEXT_KEY,
+            )
+            .is_ok()
+    {
+        return Err(AnthropicHandlerError::validation(
+            "cache_control is incompatible with Anthropic billing-preamble stripping",
+        )
+        .into_marked_response(&mut inflight_guard));
+    }
     if state.strip_anthropic_preamble_enabled() {
         strip_billing_preamble(&mut request.system);
     }

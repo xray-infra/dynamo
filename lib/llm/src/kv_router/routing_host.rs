@@ -9,6 +9,7 @@ use std::{
 };
 
 use dynamo_kv_router::{
+    kv_hints::merge_kv_hints,
     protocols::{TokensWithHashes, WorkerConfigLike, WorkerWithDpRank},
     scheduling::{AbortCause, KvSchedulerError},
     selector::{WorkerInputs, WorkerSelector},
