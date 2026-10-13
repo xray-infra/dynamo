@@ -173,6 +173,18 @@ impl StreamingEngine for OpenAiHttpEngine {
         &self,
         req: SingleIn<NvCreateChatCompletionRequest>,
     ) -> Result<ManyOut<Annotated<NvCreateChatCompletionStreamResponse>>, Error> {
+        if req
+            .get::<Vec<crate::http::service::anthropic_cache_control::CacheControlTarget>>(
+                crate::http::service::anthropic_cache_control::CACHE_CONTROL_CONTEXT_KEY,
+            )
+            .is_ok()
+        {
+            return Err(crate::http::service::error::invalid_argument(
+                "Anthropic cache_control is not supported by the OpenAI HTTP worker transport",
+            )
+            .into());
+        }
+
         let (request, context) = req.into_parts();
         let ctx = context.context();
         // Obtain native usage for upstream unary aggregation and Messages,
