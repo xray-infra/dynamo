@@ -36,16 +36,46 @@ pub struct OpenAiHttpEngine {
 
 impl OpenAiHttpEngine {
     fn worker_index(&self, body: &Value) -> usize {
-        let Some(key) = body
+        let explicit_key = body
             .get("prompt_cache_key")
             .and_then(Value::as_str)
-            .filter(|key| !key.is_empty())
-        else {
+            .filter(|key| !key.is_empty());
+        let messages = body.get("messages").filter(|messages| {
+            messages
+                .as_array()
+                .is_some_and(|messages| !messages.is_empty())
+        });
+        if explicit_key.is_none() && messages.is_none() {
             return self.next.fetch_add(1, Ordering::Relaxed) % self.workers.len();
-        };
+        }
+        let derived_key = explicit_key.is_none().then(|| {
+            let mut hash = Sha256::new();
+            for field in [
+                "messages",
+                "tools",
+                "tool_choice",
+                "parallel_tool_calls",
+                "chat_template",
+                "chat_template_kwargs",
+            ] {
+                let Some(value) = body.get(field) else {
+                    continue;
+                };
+                let value = value.to_string();
+                hash.update((field.len() as u64).to_be_bytes());
+                hash.update(field.as_bytes());
+                hash.update((value.len() as u64).to_be_bytes());
+                hash.update(value.as_bytes());
+            }
+            hash.finalize()
+        });
+
         // Rendezvous affinity is a routing hint, not evidence of resident KV.
-        // Length framing separates model, namespace, key and worker identity;
-        // scores are stable across frontend restart and worker-list reordering.
+        // An explicit OpenAI prompt_cache_key remains authoritative. When a
+        // client omits it, derive best-effort affinity from the prompt-forming
+        // fields so identical C1 requests do not round-robin away from warm KV.
+        // Length framing separates every field and worker identity; scores are
+        // stable across frontend restart and worker-list reordering.
         let model = body
             .get("model")
             .and_then(Value::as_str)
@@ -59,10 +89,20 @@ impl OpenAiHttpEngine {
             .enumerate()
             .max_by_key(|(_, worker)| {
                 let mut hash = Sha256::new();
-                for value in [model, salt, key, worker.as_str()] {
+                for value in [model, salt] {
                     hash.update((value.len() as u64).to_be_bytes());
                     hash.update(value.as_bytes());
                 }
+                if let Some(key) = explicit_key {
+                    hash.update((key.len() as u64).to_be_bytes());
+                    hash.update(key.as_bytes());
+                } else if let Some(key) = &derived_key {
+                    hash.update((key.len() as u64).to_be_bytes());
+                    hash.update(key);
+                }
+                let worker = worker.as_str();
+                hash.update((worker.len() as u64).to_be_bytes());
+                hash.update(worker.as_bytes());
                 let digest = hash.finalize();
                 u64::from_be_bytes(digest[..8].try_into().unwrap())
             })
@@ -338,7 +378,7 @@ mod tests {
     }
 
     #[test]
-    fn explicit_cache_key_has_stable_affinity_without_changing_worker_wire() {
+    fn cache_affinity_is_stable_for_explicit_keys_and_identical_prompts() {
         let engine = OpenAiHttpEngine::new(vec![
             "http://127.0.0.1:28100".into(),
             "http://127.0.0.1:28101".into(),
@@ -348,12 +388,33 @@ mod tests {
             "prompt_cache_key":"prefix-key", "nvext":{"cache_salt":"tenant-A"}});
         let body = worker_request(serde_json::from_value(raw).unwrap()).unwrap();
         assert_eq!(body["prompt_cache_key"], "prefix-key");
-        let first = engine.worker_index(&body);
+        let explicit = engine.worker_index(&body);
         for _ in 0..16 {
-            assert_eq!(engine.worker_index(&body), first);
+            assert_eq!(engine.worker_index(&body), explicit);
         }
-        let no_key = json!({"model":"glm-5.3-flash"});
-        assert_ne!(engine.worker_index(&no_key), engine.worker_index(&no_key));
+
+        let automatic = json!({
+            "model":"glm-5.3-flash",
+            "messages":[{"role":"user","content":"stable prompt"}],
+            "max_tokens":1,
+        });
+        let first = engine.worker_index(&automatic);
+        for _ in 0..16 {
+            assert_eq!(engine.worker_index(&automatic), first);
+        }
+        let different_generation_controls = json!({
+            "model":"glm-5.3-flash",
+            "messages":[{"role":"user","content":"stable prompt"}],
+            "max_tokens":128,
+            "temperature":0.7,
+        });
+        assert_eq!(engine.worker_index(&different_generation_controls), first);
+
+        let no_prompt = json!({"model":"glm-5.3-flash"});
+        assert_ne!(
+            engine.worker_index(&no_prompt),
+            engine.worker_index(&no_prompt)
+        );
     }
 
     #[test]
