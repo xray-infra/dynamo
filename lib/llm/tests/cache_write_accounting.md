@@ -66,10 +66,34 @@ alias when these legacy workers leave the supported N-2 window.
 - The first integration wrapper run failed only because its expected case count
   was still eight; the updated 12-case assertion passed.
 
-These are source and CPU/HTTP mapping results, not production deployment results.
-A committed Linux build and a bounded live candidate are still required before
-public replacement and public write-count acceptance. Public serving remained on
-`838c180` during these checks.
+Committed revision `bb765cb197e92d4a0b7d9ab173413312746df3c1` subsequently passed
+Linux release qualification: 444 source/dependency/deployment/harness hashes,
+engine 5, Anthropic 106, OpenAI 676, HTTP service 378 and integration 1 tests
+(1166 passed; 10 ignored). The SDK supplied Python 3.12 but no `python3` alias;
+the initial integration failure is preserved, and an owned temporary alias to
+that existing interpreter made the unchanged integration pass. No packages,
+GPU devices or network were added to the build.
+
+Qualified ELF SHA256:
+`87b66120d7d994ba5ce3e189949e9665b7f07a7c53642a0bc7c612b386b3dc7e`.
+The scratch candidate image has one rootfs layer and no inherited serving image.
+The real GPU candidate, targeting the existing Flash worker without changing
+public routing or restarting a GPU worker, passed 12 protocol/tool/stream cases
+and 12 cold/warm write cases. Receipt: `write-candidate-bb765cb-1791868371`.
+
+| Protocol (both unary and stream) | Total input | Cold read / write | Warm read / write |
+| --- | ---: | ---: | ---: |
+| Chat | 4944 | 0 / 4096 | 4096 / 0 |
+| Responses | 4945 | 0 / 4096 | 4096 / 0 |
+| Messages | 4942 | 0 / 4096 | 4096 / 0 |
+
+Messages reports ordinary input 846 on both cold and warm requests, preserving
+`846 + read + creation = 4942`. Small total-input differences across protocols
+reflect their different test payloads/templates, not inferred billing.
+
+These candidate results qualify the mapping fix, not public deployment. Public
+serving remained on `838c180` during candidate checks; normal merge and a single
+public post-deployment check follow.
 
 Restart readback failed in the prior live experiments; TTL controls remain
 unsupported. Authoritative tariffs and invoice/ledger reconciliation remain
