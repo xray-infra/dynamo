@@ -60,15 +60,29 @@ struct PdDecode {
 
 /// SGLang PD disaggregation: every request goes to one prefill and one decode
 /// worker with a shared bootstrap room. The prefix KV cache lives on the
-/// prefill, so prefill follows the request's session key (rendezvous order)
-/// and only spills to the next choice when that prefill is already
-/// `PD_AFFINITY_SLACK` of prompt work above the least loaded one. Requests
-/// without a key, and decode, go to the least loaded worker.
+/// prefill, so prefill follows the request's session key. A session whose last
+/// turn ran on a prefill costs only its new prompt bytes there and its whole
+/// prompt anywhere else; it goes where it finishes first (outstanding work plus
+/// its own cost). A session without that history follows its rendezvous order
+/// and spills when its first choice is `PD_AFFINITY_SLACK` above the least
+/// loaded prefill. Requests without a key, and decode, go to the least loaded
+/// worker. Outstanding prefill work counts the estimated uncached bytes.
 struct PdRoutes {
     prefills: Vec<PdPrefill>,
     decodes: Vec<PdDecode>,
     next: AtomicUsize,
+    sessions: parking_lot::Mutex<lru::LruCache<Vec<u8>, SessionPlacement>>,
 }
+
+/// Where a session's last turn was prefilled and its prompt size in bytes.
+#[derive(Clone, Copy)]
+struct SessionPlacement {
+    prefill: usize,
+    bytes: usize,
+}
+
+/// Sessions whose placement the frontend remembers (least recently used first out).
+const PD_SESSIONS: usize = 65_536;
 
 /// Prompt work (serialized message bytes, ~4 per token) a session's preferred
 /// prefill may carry above the least loaded one before the session spills.
@@ -76,32 +90,72 @@ struct PdRoutes {
 const PD_AFFINITY_SLACK: usize = 1_000_000;
 
 impl PdRoutes {
-    fn select(&self, session: Option<&[u8]>) -> (usize, usize) {
+    /// Returns (prefill, decode, estimated prefill work) for a request whose
+    /// prompt is `bytes` long.
+    fn select(&self, session: Option<&[u8]>, bytes: usize) -> (usize, usize, usize) {
         let start = self.next.fetch_add(1, Ordering::Relaxed);
+        let bytes = bytes.max(1);
         let loads: Vec<usize> = self
             .prefills
             .iter()
             .map(|p| p.outstanding.load(Ordering::Relaxed))
             .collect();
-        let prefill = match session {
+        let (prefill, work) = match session {
             Some(key) => {
-                let floor = loads.iter().copied().min().unwrap();
-                let mut order: Vec<usize> = (0..self.prefills.len()).collect();
-                order.sort_by_key(|&i| {
-                    std::cmp::Reverse(rendezvous_score(key, self.prefills[i].endpoint.as_str()))
-                });
-                order
-                    .into_iter()
-                    .find(|&i| loads[i] <= floor.saturating_add(PD_AFFINITY_SLACK))
-                    .unwrap()
+                let mut sessions = self.sessions.lock();
+                // A shorter prompt than last turn rewrote the history: no reuse.
+                let placed = sessions
+                    .get(key)
+                    .copied()
+                    .filter(|p| p.prefill < loads.len() && p.bytes <= bytes);
+                let choice = match placed {
+                    Some(placed) => {
+                        let cost = |i: usize| {
+                            loads[i].saturating_add(if i == placed.prefill {
+                                bytes - placed.bytes
+                            } else {
+                                bytes
+                            })
+                        };
+                        let n = loads.len();
+                        let other = (0..n)
+                            .map(|k| (start + k) % n)
+                            .filter(|&i| i != placed.prefill)
+                            .min_by_key(|&i| cost(i));
+                        match other {
+                            Some(i) if cost(i) < cost(placed.prefill) => i,
+                            _ => placed.prefill,
+                        }
+                    }
+                    None => {
+                        let floor = loads.iter().copied().min().unwrap();
+                        let mut order: Vec<usize> = (0..self.prefills.len()).collect();
+                        order.sort_by_key(|&i| {
+                            std::cmp::Reverse(rendezvous_score(
+                                key,
+                                self.prefills[i].endpoint.as_str(),
+                            ))
+                        });
+                        order
+                            .into_iter()
+                            .find(|&i| loads[i] <= floor.saturating_add(PD_AFFINITY_SLACK))
+                            .unwrap()
+                    }
+                };
+                let work = match placed {
+                    Some(placed) if placed.prefill == choice => (bytes - placed.bytes).max(1),
+                    _ => bytes,
+                };
+                sessions.put(key.to_vec(), SessionPlacement { prefill: choice, bytes });
+                (choice, work)
             }
-            None => least_loaded(loads.into_iter(), start),
+            None => (least_loaded(loads.into_iter(), start), bytes),
         };
         let decode = least_loaded(
             self.decodes.iter().map(|d| d.outstanding.load(Ordering::Relaxed)),
             start,
         );
-        (prefill, decode)
+        (prefill, decode, work)
     }
 }
 
@@ -484,6 +538,9 @@ impl OpenAiHttpEngine {
                 prefills,
                 decodes,
                 next: AtomicUsize::new(0),
+                sessions: parking_lot::Mutex::new(lru::LruCache::new(
+                    std::num::NonZeroUsize::new(PD_SESSIONS).unwrap(),
+                )),
             }),
         })
     }
@@ -600,7 +657,9 @@ impl StreamingEngine for OpenAiHttpEngine {
             if choices != 1 {
                 return Err(invalid_argument("PD disaggregation serves one choice per request (n must be 1)").into());
             }
-            let (prefill_index, decode_index) = pd.select(session_key(&body).as_deref());
+            let bytes = body.get("messages").map_or(1, |m| m.to_string().len());
+            let (prefill_index, decode_index, work) =
+                pd.select(session_key(&body).as_deref(), bytes);
             let (prefill, decode) = (&pd.prefills[prefill_index], &pd.decodes[decode_index]);
             body["bootstrap_host"] = json!(prefill.bootstrap_host);
             body["bootstrap_port"] = json!(prefill.bootstrap_port);
@@ -608,7 +667,6 @@ impl StreamingEngine for OpenAiHttpEngine {
             let mut prefill_body = body.clone();
             prefill_body["stream"] = json!(false);
             prefill_body.as_object_mut().unwrap().remove("stream_options");
-            let work = body.get("messages").map_or(1, |m| m.to_string().len());
             let task = tokio::spawn(run_prefill(
                 self.client.clone(),
                 prefill.endpoint.clone(),
@@ -767,7 +825,7 @@ mod tests {
         let pd = engine.pd.as_ref().unwrap();
         let _busy = LoadHold::new(&pd.prefills[0].outstanding, 100_000);
         for _ in 0..3 {
-            assert_eq!(pd.select(None), (1, 0));
+            assert_eq!(pd.select(None, 10), (1, 0, 10));
         }
         drop(_busy);
         assert_eq!(pd.prefills[0].outstanding.load(Ordering::Relaxed), 0);
@@ -819,10 +877,10 @@ mod tests {
             json!({"model": "glm", "messages": messages, "tools": [{"type": "function"}]})
         };
         let key = session_key(&turn(0)).unwrap();
-        let home = pd.select(Some(&key)).0;
+        let home = pd.select(Some(&key), 100).0;
         for n in 1..4 {
             assert_eq!(session_key(&turn(n)).unwrap(), key, "multi-turn keeps the key");
-            assert_eq!(pd.select(session_key(&turn(n)).as_deref()).0, home);
+            assert_eq!(pd.select(session_key(&turn(n)).as_deref(), 100 + n).0, home);
         }
         // Namespace and explicit keys separate sessions.
         let mut salted = turn(0);
@@ -834,18 +892,48 @@ mod tests {
         explicit_other_prompt["prompt_cache_key"] = json!("k");
         assert_eq!(session_key(&explicit), session_key(&explicit_other_prompt));
         assert_eq!(session_key(&json!({"model": "glm"})), None);
-        // An overloaded home spills to the same second choice every time.
-        let busy = LoadHold::new(&pd.prefills[home].outstanding, PD_AFFINITY_SLACK + 1);
-        let spill = pd.select(Some(&key)).0;
-        assert_ne!(spill, home);
-        assert_eq!(pd.select(Some(&key)).0, spill);
+        // A new session spills from an overloaded first choice to the same
+        // second choice every time.
+        let fresh = b"fresh".to_vec();
+        let first = pd.select(Some(&fresh), 1).0;
+        pd.sessions.lock().pop(&fresh);
+        let busy = LoadHold::new(&pd.prefills[first].outstanding, PD_AFFINITY_SLACK + 1);
+        let spill = pd.select(Some(&fresh), 1).0;
+        assert_ne!(spill, first);
+        pd.sessions.lock().pop(&fresh);
+        assert_eq!(pd.select(Some(&fresh), 1).0, spill);
         drop(busy);
-        assert_eq!(pd.select(Some(&key)).0, home);
         // Distinct sessions spread over the prefills.
         let homes: BTreeSet<_> = (0..64)
-            .map(|i| pd.select(Some(format!("s{i}").as_bytes())).0)
+            .map(|i| pd.select(Some(format!("s{i}").as_bytes()), 1).0)
             .collect();
         assert!(homes.len() >= 6, "{homes:?}");
+    }
+
+    #[test]
+    fn pd_sessions_pay_only_new_bytes_where_their_prefix_is_cached() {
+        let engine = pd_engine(8);
+        let pd = engine.pd.as_ref().unwrap();
+        let key = b"agent".to_vec();
+        // First turn: whole prompt.
+        let (home, _, work) = pd.select(Some(&key), 300_000);
+        assert_eq!(work, 300_000);
+        // Later turns: only the appended bytes, on the same prefill, even when
+        // the home carries more raw work than the old byte-count slack allowed
+        // but less than the cost of recomputing the prompt elsewhere.
+        let _busy = LoadHold::new(&pd.prefills[home].outstanding, 250_000);
+        let (stay, _, work) = pd.select(Some(&key), 310_000);
+        assert_eq!((stay, work), (home, 10_000));
+        // Recomputing elsewhere wins once the home backlog exceeds the prompt.
+        let _busier = LoadHold::new(&pd.prefills[home].outstanding, 200_000);
+        let (moved, _, work) = pd.select(Some(&key), 320_000);
+        assert_ne!(moved, home);
+        assert_eq!(work, 320_000);
+        // The session stays where its prefix now lives.
+        let (next, _, work) = pd.select(Some(&key), 330_000);
+        assert_eq!((next, work), (moved, 10_000));
+        // A rewritten (shorter) history is not treated as cached.
+        assert_eq!(pd.select(Some(&key), 50_000).2, 50_000);
     }
 
     #[test]
