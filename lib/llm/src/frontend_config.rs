@@ -59,6 +59,7 @@ impl Default for MetricsConfig {
 pub struct AnthropicApiConfig {
     enabled: bool,
     strip_preamble: bool,
+    cache_control_automatic: bool,
 }
 
 impl AnthropicApiConfig {
@@ -66,6 +67,7 @@ impl AnthropicApiConfig {
         Self {
             enabled,
             strip_preamble,
+            cache_control_automatic: false,
         }
     }
 
@@ -84,6 +86,17 @@ impl AnthropicApiConfig {
     pub fn set_strip_preamble(&mut self, strip_preamble: bool) {
         self.strip_preamble = strip_preamble;
     }
+
+    /// Whether valid block-level `cache_control` is accepted as a hint for
+    /// automatic prefix caching instead of an exact prompt boundary. Engines
+    /// that cannot place exact boundaries (HTTP workers) would otherwise reject it.
+    pub fn cache_control_automatic(&self) -> bool {
+        self.cache_control_automatic
+    }
+
+    pub fn set_cache_control_automatic(&mut self, automatic: bool) {
+        self.cache_control_automatic = automatic;
+    }
 }
 
 impl Default for AnthropicApiConfig {
@@ -93,6 +106,7 @@ impl Default for AnthropicApiConfig {
             strip_preamble: std::env::var(env_llm::DYN_STRIP_ANTHROPIC_PREAMBLE)
                 .map(|value| is_truthy(&value))
                 .unwrap_or(true),
+            cache_control_automatic: false,
         }
     }
 }
