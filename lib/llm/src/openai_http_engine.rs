@@ -113,6 +113,44 @@ fn rendezvous_score(key: &[u8], worker: &str) -> u64 {
     u64::from_be_bytes(hash.finalize()[..8].try_into().unwrap())
 }
 
+/// JSON text with object keys sorted at every level. Fields such as
+/// `chat_template_kwargs` are filled from hash maps, so their key order changes
+/// per request; hashing the raw text would give every turn a different key.
+fn canonical_json(value: &Value) -> String {
+    fn write(value: &Value, out: &mut String) {
+        match value {
+            Value::Object(map) => {
+                let mut entries: Vec<_> = map.iter().collect();
+                entries.sort_by(|a, b| a.0.cmp(b.0));
+                out.push('{');
+                for (i, (key, item)) in entries.into_iter().enumerate() {
+                    if i > 0 {
+                        out.push(',');
+                    }
+                    out.push_str(&Value::String(key.clone()).to_string());
+                    out.push(':');
+                    write(item, out);
+                }
+                out.push('}');
+            }
+            Value::Array(items) => {
+                out.push('[');
+                for (i, item) in items.iter().enumerate() {
+                    if i > 0 {
+                        out.push(',');
+                    }
+                    write(item, out);
+                }
+                out.push(']');
+            }
+            other => out.push_str(&other.to_string()),
+        }
+    }
+    let mut out = String::new();
+    write(value, &mut out);
+    out
+}
+
 /// Stable key for the KV prefix a request shares with its session: an explicit
 /// `prompt_cache_key`, otherwise the prompt head that stays fixed across turns
 /// (tools and template controls plus messages through the first user turn).
@@ -143,10 +181,10 @@ fn session_key(body: &Value) -> Option<Vec<u8>> {
         .map_or(messages.len(), |i| i + 1);
     for name in ["tools", "chat_template", "chat_template_kwargs"] {
         if let Some(value) = body.get(name) {
-            field(name, &value.to_string());
+            field(name, &canonical_json(value));
         }
     }
-    field("messages", &Value::from(messages[..head].to_vec()).to_string());
+    field("messages", &canonical_json(&Value::from(messages[..head].to_vec())));
     Some(hash.finalize().to_vec())
 }
 
@@ -273,7 +311,7 @@ impl OpenAiHttpEngine {
                 let Some(value) = body.get(field) else {
                     continue;
                 };
-                let value = value.to_string();
+                let value = canonical_json(value);
                 hash.update((field.len() as u64).to_be_bytes());
                 hash.update(field.as_bytes());
                 hash.update((value.len() as u64).to_be_bytes());
@@ -679,6 +717,21 @@ mod tests {
             vec!["http://d0:1/".into()],
         )
         .unwrap()
+    }
+
+    #[test]
+    fn affinity_keys_ignore_object_key_order() {
+        let a = json!({"model": "glm", "messages": [{"role": "user", "content": "x"}],
+                       "chat_template_kwargs": {"thinking": true, "reasoning_effort": "low"}});
+        let b = json!({"model": "glm", "messages": [{"content": "x", "role": "user"}],
+                       "chat_template_kwargs": {"reasoning_effort": "low", "thinking": true}});
+        assert_eq!(session_key(&a), session_key(&b));
+        assert_eq!(canonical_json(&a), canonical_json(&b));
+        let engine = OpenAiHttpEngine::new(
+            (0..8).map(|i| format!("http://w{i}:1/")).collect(),
+        )
+        .unwrap();
+        assert_eq!(engine.worker_index(&a), engine.worker_index(&b));
     }
 
     #[test]
