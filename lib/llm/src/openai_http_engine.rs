@@ -608,8 +608,11 @@ struct UsageRelay {
 impl UsageRelay {
     fn new(request: &NvCreateChatCompletionRequest) -> Self {
         let options = request.inner.stream_options.as_ref();
+        // A unary request is folded into one response, whose usage comes from
+        // the usage-only chunk.
+        let streaming = request.inner.stream.unwrap_or(false);
         Self {
-            requested: options.is_some_and(|o| o.include_usage),
+            requested: !streaming || options.is_some_and(|o| o.include_usage),
             continuous: options.is_some_and(|o| o.continuous_usage_stats),
             output_tokens: 0,
         }
@@ -1025,6 +1028,14 @@ mod tests {
         let mut tail = chunk(false, 3);
         assert!(relay.relay(&mut tail) && tail.inner.usage.is_some());
         assert_eq!(tail.llm_metrics.unwrap().chunk_tokens, 0);
+        // Unary: the usage-only chunk always reaches the aggregator.
+        let mut unary = request(Value::Null);
+        unary.inner.stream = Some(false);
+        let mut relay = UsageRelay::new(&unary);
+        let mut first = chunk(true, 3);
+        assert!(relay.relay(&mut first) && first.inner.usage.is_none());
+        let mut tail = chunk(false, 3);
+        assert!(relay.relay(&mut tail) && tail.inner.usage.is_some());
         // continuous_usage_stats: usage kept on every chunk.
         let mut relay = UsageRelay::new(&request(json!({"include_usage": true, "continuous_usage_stats": true})));
         let mut first = chunk(true, 3);
