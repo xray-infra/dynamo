@@ -58,27 +58,96 @@ struct PdDecode {
 }
 
 /// SGLang PD disaggregation: every request goes to one prefill and one decode
-/// worker with a shared bootstrap room. Prefill is chosen by the least
-/// outstanding prompt work, decode by the fewest open streams.
+/// worker with a shared bootstrap room. The prefix KV cache lives on the
+/// prefill, so prefill follows the request's session key (rendezvous order)
+/// and only spills to the next choice when that prefill is already
+/// `PD_AFFINITY_SLACK` of prompt work above the least loaded one. Requests
+/// without a key, and decode, go to the least loaded worker.
 struct PdRoutes {
     prefills: Vec<PdPrefill>,
     decodes: Vec<PdDecode>,
     next: AtomicUsize,
 }
 
+/// Prompt work (serialized message bytes, ~4 per token) a session's preferred
+/// prefill may carry above the least loaded one before the session spills.
+/// About 250K tokens, i.e. roughly 20 s of PP8 prefill.
+const PD_AFFINITY_SLACK: usize = 1_000_000;
+
 impl PdRoutes {
-    fn select(&self) -> (usize, usize) {
+    fn select(&self, session: Option<&[u8]>) -> (usize, usize) {
         let start = self.next.fetch_add(1, Ordering::Relaxed);
-        let prefill = least_loaded(
-            self.prefills.iter().map(|p| p.outstanding.load(Ordering::Relaxed)),
-            start,
-        );
+        let loads: Vec<usize> = self
+            .prefills
+            .iter()
+            .map(|p| p.outstanding.load(Ordering::Relaxed))
+            .collect();
+        let prefill = match session {
+            Some(key) => {
+                let floor = loads.iter().copied().min().unwrap();
+                let mut order: Vec<usize> = (0..self.prefills.len()).collect();
+                order.sort_by_key(|&i| {
+                    std::cmp::Reverse(rendezvous_score(key, self.prefills[i].endpoint.as_str()))
+                });
+                order
+                    .into_iter()
+                    .find(|&i| loads[i] <= floor.saturating_add(PD_AFFINITY_SLACK))
+                    .unwrap()
+            }
+            None => least_loaded(loads.into_iter(), start),
+        };
         let decode = least_loaded(
             self.decodes.iter().map(|d| d.outstanding.load(Ordering::Relaxed)),
             start,
         );
         (prefill, decode)
     }
+}
+
+fn rendezvous_score(key: &[u8], worker: &str) -> u64 {
+    let mut hash = Sha256::new();
+    hash.update((key.len() as u64).to_be_bytes());
+    hash.update(key);
+    hash.update((worker.len() as u64).to_be_bytes());
+    hash.update(worker.as_bytes());
+    u64::from_be_bytes(hash.finalize()[..8].try_into().unwrap())
+}
+
+/// Stable key for the KV prefix a request shares with its session: an explicit
+/// `prompt_cache_key`, otherwise the prompt head that stays fixed across turns
+/// (tools and template controls plus messages through the first user turn).
+/// Scoped by model and cache namespace. None when the request has no prompt.
+fn session_key(body: &Value) -> Option<Vec<u8>> {
+    let mut hash = Sha256::new();
+    let mut field = |name: &str, value: &str| {
+        hash.update((name.len() as u64).to_be_bytes());
+        hash.update(name.as_bytes());
+        hash.update((value.len() as u64).to_be_bytes());
+        hash.update(value.as_bytes());
+    };
+    for name in ["model", "cache_salt"] {
+        field(name, body.get(name).and_then(Value::as_str).unwrap_or_default());
+    }
+    if let Some(key) = body
+        .get("prompt_cache_key")
+        .and_then(Value::as_str)
+        .filter(|key| !key.is_empty())
+    {
+        field("prompt_cache_key", key);
+        return Some(hash.finalize().to_vec());
+    }
+    let messages = body.get("messages")?.as_array().filter(|m| !m.is_empty())?;
+    let head = messages
+        .iter()
+        .position(|m| m.get("role").and_then(Value::as_str) == Some("user"))
+        .map_or(messages.len(), |i| i + 1);
+    for name in ["tools", "chat_template", "chat_template_kwargs"] {
+        if let Some(value) = body.get(name) {
+            field(name, &value.to_string());
+        }
+    }
+    field("messages", &Value::from(messages[..head].to_vec()).to_string());
+    Some(hash.finalize().to_vec())
 }
 
 /// Index of the smallest load; ties rotate with `start` so equal workers share traffic.
@@ -424,7 +493,7 @@ impl StreamingEngine for OpenAiHttpEngine {
         let mut prefill_done = false;
         let response = if let Some(pd) = &self.pd {
             ensure!(choices == 1, "PD disaggregation serves one choice per request");
-            let (prefill_index, decode_index) = pd.select();
+            let (prefill_index, decode_index) = pd.select(session_key(&body).as_deref());
             let (prefill, decode) = (&pd.prefills[prefill_index], &pd.decodes[decode_index]);
             body["bootstrap_host"] = json!(prefill.bootstrap_host);
             body["bootstrap_port"] = json!(prefill.bootstrap_port);
@@ -589,7 +658,7 @@ mod tests {
         let pd = engine.pd.as_ref().unwrap();
         let _busy = LoadHold::new(&pd.prefills[0].outstanding, 100_000);
         for _ in 0..3 {
-            assert_eq!(pd.select(), (1, 0));
+            assert_eq!(pd.select(None), (1, 0));
         }
         drop(_busy);
         assert_eq!(pd.prefills[0].outstanding.load(Ordering::Relaxed), 0);
@@ -600,6 +669,59 @@ mod tests {
             )
             .is_err()
         );
+    }
+
+    fn pd_engine(prefills: usize) -> OpenAiHttpEngine {
+        OpenAiHttpEngine::new_pd(
+            (0..prefills)
+                .map(|i| PdPrefillOrigin { origin: format!("http://p{i}:1/"), bootstrap_port: 8998 })
+                .collect(),
+            vec!["http://d0:1/".into()],
+        )
+        .unwrap()
+    }
+
+    #[test]
+    fn pd_session_keeps_one_prefill_across_turns_and_spills_when_overloaded() {
+        let engine = pd_engine(8);
+        let pd = engine.pd.as_ref().unwrap();
+        let turn = |n: usize| {
+            let mut messages = vec![json!({"role": "system", "content": "long shared system"}),
+                                    json!({"role": "user", "content": "first question"})];
+            for i in 0..n {
+                messages.push(json!({"role": "assistant", "content": format!("answer {i}")}));
+                messages.push(json!({"role": "user", "content": format!("follow-up {i}")}));
+            }
+            json!({"model": "glm", "messages": messages, "tools": [{"type": "function"}]})
+        };
+        let key = session_key(&turn(0)).unwrap();
+        let home = pd.select(Some(&key)).0;
+        for n in 1..4 {
+            assert_eq!(session_key(&turn(n)).unwrap(), key, "multi-turn keeps the key");
+            assert_eq!(pd.select(session_key(&turn(n)).as_deref()).0, home);
+        }
+        // Namespace and explicit keys separate sessions.
+        let mut salted = turn(0);
+        salted["cache_salt"] = json!("tenant-b");
+        assert_ne!(session_key(&salted).unwrap(), key);
+        let mut explicit = turn(2);
+        explicit["prompt_cache_key"] = json!("k");
+        let mut explicit_other_prompt = json!({"model": "glm", "messages": [{"role": "user", "content": "x"}]});
+        explicit_other_prompt["prompt_cache_key"] = json!("k");
+        assert_eq!(session_key(&explicit), session_key(&explicit_other_prompt));
+        assert_eq!(session_key(&json!({"model": "glm"})), None);
+        // An overloaded home spills to the same second choice every time.
+        let busy = LoadHold::new(&pd.prefills[home].outstanding, PD_AFFINITY_SLACK + 1);
+        let spill = pd.select(Some(&key)).0;
+        assert_ne!(spill, home);
+        assert_eq!(pd.select(Some(&key)).0, spill);
+        drop(busy);
+        assert_eq!(pd.select(Some(&key)).0, home);
+        // Distinct sessions spread over the prefills.
+        let homes: BTreeSet<_> = (0..64)
+            .map(|i| pd.select(Some(format!("s{i}").as_bytes())).0)
+            .collect();
+        assert!(homes.len() >= 6, "{homes:?}");
     }
 
     #[test]
