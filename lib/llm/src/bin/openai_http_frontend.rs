@@ -358,8 +358,36 @@ mod tests {
         .await
         .expect("prefill failure must not wait for decode")
         .unwrap();
-        assert!(!response.status().is_success());
+        assert_eq!(response.status(), reqwest::StatusCode::SERVICE_UNAVAILABLE);
         assert_eq!(prefill.lock().unwrap().len(), 1);
+        cancel.cancel();
+    }
+
+    #[tokio::test]
+    async fn pd_worker_client_errors_and_n_are_client_errors() {
+        let (frontend, prefill, decode, cancel) = pd_frontend(400, Duration::from_secs(60)).await;
+        let client = reqwest::Client::new();
+        let response = client
+            .post(format!("{frontend}/v1/chat/completions"))
+            .json(&chat())
+            .send()
+            .await
+            .unwrap();
+        assert_eq!(response.status(), reqwest::StatusCode::BAD_REQUEST);
+        let decoded = decode.lock().unwrap().len();
+
+        let mut two = chat();
+        two["n"] = json!(2);
+        let response = client
+            .post(format!("{frontend}/v1/chat/completions"))
+            .json(&two)
+            .send()
+            .await
+            .unwrap();
+        assert_eq!(response.status(), reqwest::StatusCode::BAD_REQUEST);
+        // Rejected before any worker sees it.
+        assert_eq!(prefill.lock().unwrap().len(), 1);
+        assert_eq!(decode.lock().unwrap().len(), decoded);
         cancel.cancel();
     }
 
