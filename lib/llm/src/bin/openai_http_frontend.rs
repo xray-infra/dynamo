@@ -73,7 +73,7 @@ async fn main() -> anyhow::Result<()> {
     let bytes = std::fs::read(path)?;
     let config: Config = serde_json::from_slice(&bytes)?;
     ensure!(!config.model.is_empty(), "model cannot be empty");
-    let model = config.model.clone();
+    let (model, listen) = (config.model.clone(), config.listen);
     let engine = Arc::new(StreamingEngineAdapter::new(Arc::new(build_engine(config)?)));
     let mut api = FrontendApiConfig::default();
     api.anthropic_mut().set_enabled(true);
@@ -81,8 +81,8 @@ async fn main() -> anyhow::Result<()> {
         .frontend_api_config(api)
         .enable_chat_endpoints(true)
         .enable_admin_api(false)
-        .host(config.listen.ip().to_string())
-        .port(config.listen.port())
+        .host(listen.ip().to_string())
+        .port(listen.port())
         .build()?;
     // This is the upstream local text-engine registration, not a discovered
     // worker card or a fabricated worker capability/TTL authority.
