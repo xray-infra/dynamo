@@ -27,6 +27,27 @@ struct Config {
     /// SGLang PD disaggregation: each request runs on one prefill and one decode.
     #[serde(default)]
     pd: Option<PdConfig>,
+    /// Anthropic block-level `cache_control`: `reject` (default) because HTTP
+    /// workers cannot place exact boundaries or TTLs, or `automatic` to accept
+    /// valid directives as hints for ordinary automatic prefix caching.
+    #[serde(default)]
+    anthropic_cache_control: CacheControlMode,
+}
+
+#[derive(Clone, Copy, Default, Deserialize)]
+#[serde(rename_all = "snake_case")]
+enum CacheControlMode {
+    #[default]
+    Reject,
+    Automatic,
+}
+
+fn frontend_api(mode: CacheControlMode) -> FrontendApiConfig {
+    let mut api = FrontendApiConfig::default();
+    api.anthropic_mut().set_enabled(true);
+    api.anthropic_mut()
+        .set_cache_control_automatic(matches!(mode, CacheControlMode::Automatic));
+    api
 }
 
 #[derive(Deserialize)]
@@ -74,9 +95,8 @@ async fn main() -> anyhow::Result<()> {
     let config: Config = serde_json::from_slice(&bytes)?;
     ensure!(!config.model.is_empty(), "model cannot be empty");
     let (model, listen) = (config.model.clone(), config.listen);
+    let api = frontend_api(config.anthropic_cache_control);
     let engine = Arc::new(StreamingEngineAdapter::new(Arc::new(build_engine(config)?)));
-    let mut api = FrontendApiConfig::default();
-    api.anthropic_mut().set_enabled(true);
     let service = HttpService::builder()
         .frontend_api_config(api)
         .enable_chat_endpoints(true)
@@ -340,6 +360,71 @@ mod tests {
         .unwrap();
         assert!(!response.status().is_success());
         assert_eq!(prefill.lock().unwrap().len(), 1);
+        cancel.cancel();
+    }
+
+    #[tokio::test]
+    async fn automatic_cache_control_reaches_the_worker_and_malformed_is_rejected() {
+        let dispatches = Arc::new(AtomicUsize::new(0));
+        let worker_dispatches = dispatches.clone();
+        let worker = Router::new().route(
+            "/v1/chat/completions",
+            post(move || {
+                let worker_dispatches = worker_dispatches.clone();
+                async move {
+                    worker_dispatches.fetch_add(1, Ordering::SeqCst);
+                    ([("content-type", "text/event-stream")], WORKER_RESPONSE)
+                }
+            }),
+        );
+        let (worker_origin, _) = serve(worker).await;
+        let config: Config = serde_json::from_value(json!({
+            "listen": "127.0.0.1:0", "model": "test-model",
+            "workers": [format!("{worker_origin}/")],
+            "anthropic_cache_control": "automatic"
+        }))
+        .unwrap();
+        // Default preamble stripping stays on: automatic mode must not trip it.
+        let api = frontend_api(config.anthropic_cache_control);
+        let engine = Arc::new(StreamingEngineAdapter::new(Arc::new(
+            build_engine(config).unwrap(),
+        )));
+        let service = HttpService::builder()
+            .frontend_api_config(api)
+            .enable_chat_endpoints(true)
+            .enable_admin_api(false)
+            .host("127.0.0.1".to_string())
+            .port(0)
+            .build()
+            .unwrap();
+        service
+            .model_manager()
+            .add_chat_completions_model("test-model", "test-checksum", engine)
+            .unwrap();
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let address = listener.local_addr().unwrap();
+        let cancel = CancellationToken::new();
+        service.spawn_with_listener(cancel.clone(), listener).await;
+        let client = reqwest::Client::new();
+        let url = format!("http://{address}/v1/messages");
+        let block = |cache_control: serde_json::Value| json!({
+            "model": "test-model", "max_tokens": 8,
+            "system": [{"type": "text", "text": "sys", "cache_control": cache_control.clone()}],
+            "messages": [{"role": "user", "content": [{"type": "text", "text": "hi",
+                "cache_control": cache_control}]}]
+        });
+        let ok = client.post(&url).json(&block(json!({"type": "ephemeral"})))
+            .send().await.unwrap();
+        assert_eq!(ok.status(), reqwest::StatusCode::OK);
+        assert_eq!(dispatches.load(Ordering::SeqCst), 1);
+        let ttl = client.post(&url).json(&block(json!({"type": "ephemeral", "ttl": "1h"})))
+            .send().await.unwrap();
+        assert_eq!(ttl.status(), reqwest::StatusCode::OK);
+        assert_eq!(dispatches.load(Ordering::SeqCst), 2);
+        let malformed = client.post(&url).json(&block(json!({"type": "persistent"})))
+            .send().await.unwrap();
+        assert_eq!(malformed.status(), reqwest::StatusCode::BAD_REQUEST);
+        assert_eq!(dispatches.load(Ordering::SeqCst), 2);
         cancel.cancel();
     }
 

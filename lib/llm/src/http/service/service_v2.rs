@@ -658,6 +658,10 @@ impl State {
         self.frontend_api_config.anthropic().strip_preamble()
     }
 
+    pub fn anthropic_cache_control_automatic(&self) -> bool {
+        self.frontend_api_config.anthropic().cache_control_automatic()
+    }
+
     /// Returns true if the Anthropic Messages API is enabled by service config.
     pub fn anthropic_api_enabled(&self) -> bool {
         self.frontend_api_config.anthropic().enabled()

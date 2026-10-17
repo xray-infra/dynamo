@@ -426,7 +426,9 @@ async fn handler_anthropic_messages(
         .into_marked_response(&mut inflight_guard)
     })?;
     let mut request = Context::with_id_and_metadata(request, request_id.clone(), metadata);
-    if !cache_control_targets.is_empty() {
+    // Automatic mode validated the directives above; it does not promise exact
+    // boundaries or TTLs, so the request falls through to automatic prefix caching.
+    if !cache_control_targets.is_empty() && !state.anthropic_cache_control_automatic() {
         request.insert(
             super::anthropic_cache_control::CACHE_CONTROL_CONTEXT_KEY,
             cache_control_targets,
