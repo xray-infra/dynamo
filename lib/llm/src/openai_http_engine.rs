@@ -5,6 +5,7 @@
 //! Public handlers, protocol conversion, aggregation and usage belong to Dynamo.
 
 use std::collections::BTreeSet;
+use std::sync::Arc;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::time::Duration;
 
@@ -27,11 +28,153 @@ use crate::protocols::openai::completions::{
 };
 
 const MAX_EVENT_BYTES: usize = 8 * 1024 * 1024;
+const MAX_PREFILL_RESPONSE_BYTES: usize = 64 * 1024 * 1024;
 
 pub struct OpenAiHttpEngine {
     client: reqwest::Client,
     workers: Vec<reqwest::Url>,
     next: AtomicUsize,
+    pd: Option<PdRoutes>,
+}
+
+/// One SGLang prefill worker: its HTTP origin and disaggregation bootstrap port.
+pub struct PdPrefillOrigin {
+    pub origin: String,
+    pub bootstrap_port: u16,
+}
+
+struct PdPrefill {
+    endpoint: reqwest::Url,
+    bootstrap_host: String,
+    bootstrap_port: u16,
+    // Prompt bytes of requests whose prefill has not finished.
+    outstanding: Arc<AtomicUsize>,
+}
+
+struct PdDecode {
+    endpoint: reqwest::Url,
+    // Requests whose decode stream is still open.
+    outstanding: Arc<AtomicUsize>,
+}
+
+/// SGLang PD disaggregation: every request goes to one prefill and one decode
+/// worker with a shared bootstrap room. Prefill is chosen by the least
+/// outstanding prompt work, decode by the fewest open streams.
+struct PdRoutes {
+    prefills: Vec<PdPrefill>,
+    decodes: Vec<PdDecode>,
+    next: AtomicUsize,
+}
+
+impl PdRoutes {
+    fn select(&self) -> (usize, usize) {
+        let start = self.next.fetch_add(1, Ordering::Relaxed);
+        let prefill = least_loaded(
+            self.prefills.iter().map(|p| p.outstanding.load(Ordering::Relaxed)),
+            start,
+        );
+        let decode = least_loaded(
+            self.decodes.iter().map(|d| d.outstanding.load(Ordering::Relaxed)),
+            start,
+        );
+        (prefill, decode)
+    }
+}
+
+/// Index of the smallest load; ties rotate with `start` so equal workers share traffic.
+fn least_loaded(loads: impl ExactSizeIterator<Item = usize>, start: usize) -> usize {
+    let n = loads.len();
+    let loads: Vec<usize> = loads.collect();
+    (0..n)
+        .map(|offset| (start + offset) % n)
+        .min_by_key(|&index| loads[index])
+        .unwrap()
+}
+
+/// Load accounted to a worker until the request part it tracks finishes.
+struct LoadHold(Arc<AtomicUsize>, usize);
+
+impl LoadHold {
+    fn new(counter: &Arc<AtomicUsize>, amount: usize) -> Self {
+        counter.fetch_add(amount, Ordering::Relaxed);
+        Self(counter.clone(), amount)
+    }
+}
+
+impl Drop for LoadHold {
+    fn drop(&mut self) {
+        self.0.fetch_sub(self.1, Ordering::Relaxed);
+    }
+}
+
+/// Cancels the prefill request when the client request ends first.
+struct AbortOnDrop(tokio::task::AbortHandle);
+
+impl Drop for AbortOnDrop {
+    fn drop(&mut self) {
+        self.0.abort();
+    }
+}
+
+/// The prefill half of one PD request and the decode load it holds.
+struct PdInFlight {
+    task: tokio::task::JoinHandle<Result<(), String>>,
+    _abort: AbortOnDrop,
+    _decode: LoadHold,
+}
+
+fn prefill_outcome(
+    result: Result<Result<(), String>, tokio::task::JoinError>,
+) -> anyhow::Result<()> {
+    match result {
+        Ok(Ok(())) => Ok(()),
+        Ok(Err(error)) => bail!("prefill failed: {error}"),
+        Err(_) => bail!("prefill task ended unexpectedly"),
+    }
+}
+
+/// Send the request to prefill and drain its response. Decode owns the
+/// client-visible output; prefill only has to finish successfully.
+async fn run_prefill(
+    client: reqwest::Client,
+    endpoint: reqwest::Url,
+    body: Value,
+    _hold: LoadHold,
+) -> Result<(), String> {
+    let response = client
+        .post(endpoint)
+        .json(&body)
+        .send()
+        .await
+        .map_err(|_| "prefill transport failed".to_string())?;
+    if response.status() != reqwest::StatusCode::OK {
+        return Err(format!("prefill HTTP status {}", response.status()));
+    }
+    let mut bytes = response.bytes_stream();
+    let mut total = 0usize;
+    while let Some(part) = bytes.next().await {
+        let part = part.map_err(|_| "prefill response transport failed".to_string())?;
+        total += part.len();
+        if total > MAX_PREFILL_RESPONSE_BYTES {
+            return Err("prefill response too large".into());
+        }
+    }
+    Ok(())
+}
+
+fn worker_origin(origin: &str) -> anyhow::Result<reqwest::Url> {
+    let url = reqwest::Url::parse(origin)?;
+    ensure!(
+        matches!(url.scheme(), "http" | "https")
+            && url.host_str().is_some()
+            && url.username().is_empty()
+            && url.password().is_none()
+            && url.path() == "/"
+            && url.query().is_none()
+            && url.fragment().is_none(),
+        "worker must be an HTTP origin without credentials, path or query"
+    );
+    Ok(url.join("v1/chat/completions")?)
 }
 
 impl OpenAiHttpEngine {
@@ -116,21 +259,8 @@ impl OpenAiHttpEngine {
             "configure 1..64 worker origins"
         );
         let workers = workers
-            .into_iter()
-            .map(|origin| {
-                let url = reqwest::Url::parse(&origin)?;
-                ensure!(
-                    matches!(url.scheme(), "http" | "https")
-                        && url.host_str().is_some()
-                        && url.username().is_empty()
-                        && url.password().is_none()
-                        && url.path() == "/"
-                        && url.query().is_none()
-                        && url.fragment().is_none(),
-                    "worker must be an HTTP origin without credentials, path or query"
-                );
-                Ok(url.join("v1/chat/completions")?)
-            })
+            .iter()
+            .map(|origin| worker_origin(origin))
             .collect::<anyhow::Result<Vec<_>>>()?;
         let client = reqwest::Client::builder()
             .no_proxy()
@@ -142,6 +272,65 @@ impl OpenAiHttpEngine {
             client,
             workers,
             next: AtomicUsize::new(0),
+            pd: None,
+        })
+    }
+
+    /// Route through SGLang PD disaggregation instead of independent workers.
+    pub fn new_pd(prefills: Vec<PdPrefillOrigin>, decodes: Vec<String>) -> anyhow::Result<Self> {
+        ensure!(
+            !prefills.is_empty() && prefills.len() <= 64 && !decodes.is_empty() && decodes.len() <= 64,
+            "configure 1..64 prefill and 1..64 decode origins"
+        );
+        let prefills = prefills
+            .iter()
+            .map(|prefill| {
+                let endpoint = worker_origin(&prefill.origin)?;
+                ensure!(prefill.bootstrap_port != 0, "prefill bootstrap_port cannot be 0");
+                let bootstrap_host = endpoint
+                    .host_str()
+                    .unwrap()
+                    .trim_start_matches('[')
+                    .trim_end_matches(']')
+                    .to_owned();
+                Ok(PdPrefill {
+                    endpoint,
+                    bootstrap_host,
+                    bootstrap_port: prefill.bootstrap_port,
+                    outstanding: Arc::new(AtomicUsize::new(0)),
+                })
+            })
+            .collect::<anyhow::Result<Vec<_>>>()?;
+        let decodes = decodes
+            .iter()
+            .map(|origin| {
+                Ok(PdDecode {
+                    endpoint: worker_origin(origin)?,
+                    outstanding: Arc::new(AtomicUsize::new(0)),
+                })
+            })
+            .collect::<anyhow::Result<Vec<_>>>()?;
+        let mut origins = BTreeSet::new();
+        for url in prefills.iter().map(|p| &p.endpoint).chain(decodes.iter().map(|d| &d.endpoint)) {
+            ensure!(origins.insert(url.as_str()), "duplicate PD worker origin {url}");
+        }
+        // A long prefill can queue for minutes before decode emits its first
+        // token, so bound idle reads rather than the whole request.
+        let client = reqwest::Client::builder()
+            .no_proxy()
+            .redirect(reqwest::redirect::Policy::none())
+            .connect_timeout(Duration::from_secs(5))
+            .read_timeout(Duration::from_secs(3600))
+            .build()?;
+        Ok(Self {
+            client,
+            workers: Vec::new(),
+            next: AtomicUsize::new(0),
+            pd: Some(PdRoutes {
+                prefills,
+                decodes,
+                next: AtomicUsize::new(0),
+            }),
         })
     }
 }
@@ -229,12 +418,52 @@ impl StreamingEngine for OpenAiHttpEngine {
         let ctx = context.context();
         // Obtain native usage for upstream unary aggregation and Messages,
         // independent of the public client's stream_options.
-        let body = worker_request(request)?;
+        let mut body = worker_request(request)?;
         let choices = body.get("n").and_then(Value::as_u64).unwrap_or(1) as usize;
-        let worker = &self.workers[self.worker_index(&body)];
-        let response = tokio::select! {
-            _ = ctx.stopped() => bail!("request cancelled before native HTTP headers"),
-            response = self.client.post(worker.clone()).json(&body).send() => response?,
+        let mut pd_flight = None;
+        let mut prefill_done = false;
+        let response = if let Some(pd) = &self.pd {
+            ensure!(choices == 1, "PD disaggregation serves one choice per request");
+            let (prefill_index, decode_index) = pd.select();
+            let (prefill, decode) = (&pd.prefills[prefill_index], &pd.decodes[decode_index]);
+            body["bootstrap_host"] = json!(prefill.bootstrap_host);
+            body["bootstrap_port"] = json!(prefill.bootstrap_port);
+            body["bootstrap_room"] = json!(rand::random::<u64>() >> 1);
+            let mut prefill_body = body.clone();
+            prefill_body["stream"] = json!(false);
+            prefill_body.as_object_mut().unwrap().remove("stream_options");
+            let work = body.get("messages").map_or(1, |m| m.to_string().len());
+            let task = tokio::spawn(run_prefill(
+                self.client.clone(),
+                prefill.endpoint.clone(),
+                prefill_body,
+                LoadHold::new(&prefill.outstanding, work),
+            ));
+            let mut flight = PdInFlight {
+                _abort: AbortOnDrop(task.abort_handle()),
+                task,
+                _decode: LoadHold::new(&decode.outstanding, 1),
+            };
+            let send = self.client.post(decode.endpoint.clone()).json(&body).send();
+            tokio::pin!(send);
+            let response = loop {
+                tokio::select! {
+                    _ = ctx.stopped() => bail!("request cancelled before native HTTP headers"),
+                    result = &mut flight.task, if !prefill_done => {
+                        prefill_done = true;
+                        prefill_outcome(result)?;
+                    },
+                    response = &mut send => break response?,
+                }
+            };
+            pd_flight = Some(flight);
+            response
+        } else {
+            let worker = &self.workers[self.worker_index(&body)];
+            tokio::select! {
+                _ = ctx.stopped() => bail!("request cancelled before native HTTP headers"),
+                response = self.client.post(worker.clone()).json(&body).send() => response?,
+            }
         };
         ensure!(
             response.status() == reqwest::StatusCode::OK,
@@ -251,6 +480,10 @@ impl StreamingEngine for OpenAiHttpEngine {
         );
         let stream_context = ctx.clone();
         let output = stream! {
+            // Dropping the stream aborts an unfinished prefill and releases the
+            // decode load; a failed prefill ends the decode stream with an error.
+            let mut pd_flight = pd_flight;
+            let mut prefill_done = prefill_done || pd_flight.is_none();
             let mut bytes = response.bytes_stream();
             let mut buffer = Vec::new();
             let mut completed = BTreeSet::new();
@@ -259,6 +492,14 @@ impl StreamingEngine for OpenAiHttpEngine {
                     _ = stream_context.stopped() => {
                         yield Annotated::from_error("backend request cancelled");
                         return;
+                    },
+                    result = &mut pd_flight.as_mut().unwrap().task, if !prefill_done => {
+                        prefill_done = true;
+                        if let Err(error) = prefill_outcome(result) {
+                            yield Annotated::from_error(&error.to_string());
+                            return;
+                        }
+                        continue;
                     },
                     part = bytes.next() => part,
                 };
@@ -325,6 +566,37 @@ impl StreamingEngine for OpenAiHttpEngine {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn pd_selects_least_loaded_workers_and_rotates_ties() {
+        assert_eq!(least_loaded([5, 1, 3].into_iter(), 0), 1);
+        assert_eq!(least_loaded([5, 1, 3].into_iter(), 2), 1);
+        let picks: BTreeSet<_> = (0..4).map(|s| least_loaded([0, 0, 0, 0].into_iter(), s)).collect();
+        assert_eq!(picks.len(), 4);
+
+        let engine = OpenAiHttpEngine::new_pd(
+            vec![
+                PdPrefillOrigin { origin: "http://p0:1/".into(), bootstrap_port: 8998 },
+                PdPrefillOrigin { origin: "http://p1:1/".into(), bootstrap_port: 8998 },
+            ],
+            vec!["http://d0:1/".into()],
+        )
+        .unwrap();
+        let pd = engine.pd.as_ref().unwrap();
+        let _busy = LoadHold::new(&pd.prefills[0].outstanding, 100_000);
+        for _ in 0..3 {
+            assert_eq!(pd.select(), (1, 0));
+        }
+        drop(_busy);
+        assert_eq!(pd.prefills[0].outstanding.load(Ordering::Relaxed), 0);
+        assert!(
+            OpenAiHttpEngine::new_pd(
+                vec![PdPrefillOrigin { origin: "http://p0:1/".into(), bootstrap_port: 0 }],
+                vec!["http://d0:1/".into()],
+            )
+            .is_err()
+        );
+    }
 
     #[test]
     fn worker_request_maps_canonical_and_legacy_template_controls() {

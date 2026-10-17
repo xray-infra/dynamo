@@ -11,7 +11,7 @@ use anyhow::{Context, ensure};
 use dynamo_llm::engines::StreamingEngineAdapter;
 use dynamo_llm::frontend_config::FrontendApiConfig;
 use dynamo_llm::http::service::service_v2::HttpService;
-use dynamo_llm::openai_http_engine::OpenAiHttpEngine;
+use dynamo_llm::openai_http_engine::{OpenAiHttpEngine, PdPrefillOrigin};
 use serde::Deserialize;
 use sha2::{Digest, Sha256};
 use tokio_util::sync::CancellationToken;
@@ -21,7 +21,45 @@ use tokio_util::sync::CancellationToken;
 struct Config {
     listen: SocketAddr,
     model: String,
+    /// Independent workers. Exactly one of `workers` and `pd` is configured.
+    #[serde(default)]
     workers: Vec<String>,
+    /// SGLang PD disaggregation: each request runs on one prefill and one decode.
+    #[serde(default)]
+    pd: Option<PdConfig>,
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct PdConfig {
+    prefills: Vec<PrefillConfig>,
+    decodes: Vec<String>,
+}
+
+#[derive(Deserialize)]
+#[serde(deny_unknown_fields)]
+struct PrefillConfig {
+    origin: String,
+    bootstrap_port: u16,
+}
+
+fn build_engine(config: Config) -> anyhow::Result<OpenAiHttpEngine> {
+    match config.pd {
+        Some(pd) => {
+            ensure!(config.workers.is_empty(), "configure either workers or pd, not both");
+            OpenAiHttpEngine::new_pd(
+                pd.prefills
+                    .into_iter()
+                    .map(|p| PdPrefillOrigin {
+                        origin: p.origin,
+                        bootstrap_port: p.bootstrap_port,
+                    })
+                    .collect(),
+                pd.decodes,
+            )
+        }
+        None => OpenAiHttpEngine::new(config.workers),
+    }
 }
 
 #[tokio::main]
@@ -35,9 +73,8 @@ async fn main() -> anyhow::Result<()> {
     let bytes = std::fs::read(path)?;
     let config: Config = serde_json::from_slice(&bytes)?;
     ensure!(!config.model.is_empty(), "model cannot be empty");
-    let engine = Arc::new(StreamingEngineAdapter::new(Arc::new(
-        OpenAiHttpEngine::new(config.workers)?,
-    )));
+    let model = config.model.clone();
+    let engine = Arc::new(StreamingEngineAdapter::new(Arc::new(build_engine(config)?)));
     let mut api = FrontendApiConfig::default();
     api.anthropic_mut().set_enabled(true);
     let service = HttpService::builder()
@@ -50,7 +87,7 @@ async fn main() -> anyhow::Result<()> {
     // This is the upstream local text-engine registration, not a discovered
     // worker card or a fabricated worker capability/TTL authority.
     service.model_manager().add_chat_completions_model(
-        &config.model,
+        &model,
         &format!("{:x}", Sha256::digest(&bytes)),
         engine,
     )?;
@@ -182,5 +219,150 @@ mod tests {
         cancel.cancel();
         frontend_task.await.unwrap().unwrap();
         worker_task.abort();
+    }
+
+    type Seen = Arc<std::sync::Mutex<Vec<serde_json::Value>>>;
+
+    async fn serve(router: Router) -> (String, tokio::task::JoinHandle<()>) {
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let address = listener.local_addr().unwrap();
+        let task = tokio::spawn(async move {
+            dynamo_llm::http::service::axum::serve(listener, router)
+                .await
+                .unwrap();
+        });
+        (format!("http://{address}"), task)
+    }
+
+    async fn pd_frontend(
+        prefill_status: u16,
+        decode_delay: Duration,
+    ) -> (String, Seen, Seen, CancellationToken) {
+        use dynamo_llm::http::service::axum::Json;
+        let (prefill_seen, decode_seen): (Seen, Seen) = Default::default();
+        let seen = prefill_seen.clone();
+        let prefill = Router::new().route(
+            "/v1/chat/completions",
+            post(move |Json(body): Json<serde_json::Value>| {
+                let seen = seen.clone();
+                async move {
+                    seen.lock().unwrap().push(body);
+                    (
+                        reqwest::StatusCode::from_u16(prefill_status).unwrap(),
+                        "{}",
+                    )
+                }
+            }),
+        );
+        let seen = decode_seen.clone();
+        let decode = Router::new().route(
+            "/v1/chat/completions",
+            post(move |Json(body): Json<serde_json::Value>| {
+                let seen = seen.clone();
+                async move {
+                    seen.lock().unwrap().push(body);
+                    tokio::time::sleep(decode_delay).await;
+                    ([("content-type", "text/event-stream")], WORKER_RESPONSE)
+                }
+            }),
+        );
+        let (prefill_origin, _) = serve(prefill).await;
+        let (decode_origin, _) = serve(decode).await;
+        let config: Config = serde_json::from_value(json!({
+            "listen": "127.0.0.1:0", "model": "test-model",
+            "pd": {"prefills": [{"origin": format!("{prefill_origin}/"), "bootstrap_port": 8998}],
+                   "decodes": [format!("{decode_origin}/")]}
+        }))
+        .unwrap();
+        let engine = Arc::new(StreamingEngineAdapter::new(Arc::new(
+            build_engine(config).unwrap(),
+        )));
+        let service = HttpService::builder()
+            .enable_chat_endpoints(true)
+            .enable_admin_api(false)
+            .host("127.0.0.1".to_string())
+            .port(0)
+            .build()
+            .unwrap();
+        service
+            .model_manager()
+            .add_chat_completions_model("test-model", "test-checksum", engine)
+            .unwrap();
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let address = listener.local_addr().unwrap();
+        let cancel = CancellationToken::new();
+        service.spawn_with_listener(cancel.clone(), listener).await;
+        (format!("http://{address}"), prefill_seen, decode_seen, cancel)
+    }
+
+    fn chat() -> serde_json::Value {
+        json!({"model": "test-model", "max_tokens": 8,
+               "messages": [{"role": "user", "content": "hi"}]})
+    }
+
+    #[tokio::test]
+    async fn pd_request_shares_one_bootstrap_room_between_prefill_and_decode() {
+        let (frontend, prefill, decode, cancel) = pd_frontend(200, Duration::ZERO).await;
+        let response = reqwest::Client::new()
+            .post(format!("{frontend}/v1/chat/completions"))
+            .json(&chat())
+            .send()
+            .await
+            .unwrap();
+        assert_eq!(response.status(), reqwest::StatusCode::OK);
+        let body: serde_json::Value = response.json().await.unwrap();
+        assert_eq!(body["choices"][0]["message"]["content"], "ok");
+
+        let (p, d) = (prefill.lock().unwrap()[0].clone(), decode.lock().unwrap()[0].clone());
+        assert_eq!(p["bootstrap_host"], "127.0.0.1");
+        assert_eq!(p["bootstrap_port"], 8998);
+        assert!(p["bootstrap_room"].as_u64().is_some());
+        for key in ["bootstrap_host", "bootstrap_port", "bootstrap_room", "messages"] {
+            assert_eq!(p[key], d[key], "{key}");
+        }
+        assert_eq!(p["stream"], false);
+        assert_eq!(d["stream"], true);
+        cancel.cancel();
+    }
+
+    #[tokio::test]
+    async fn pd_prefill_failure_fails_the_request_without_waiting_for_decode() {
+        let (frontend, prefill, _, cancel) = pd_frontend(503, Duration::from_secs(60)).await;
+        let response = tokio::time::timeout(
+            Duration::from_secs(10),
+            reqwest::Client::new()
+                .post(format!("{frontend}/v1/chat/completions"))
+                .json(&chat())
+                .send(),
+        )
+        .await
+        .expect("prefill failure must not wait for decode")
+        .unwrap();
+        assert!(!response.status().is_success());
+        assert_eq!(prefill.lock().unwrap().len(), 1);
+        cancel.cancel();
+    }
+
+    #[test]
+    fn config_requires_exactly_one_worker_mode() {
+        let both: Config = serde_json::from_value(json!({
+            "listen": "127.0.0.1:0", "model": "m", "workers": ["http://a:1/"],
+            "pd": {"prefills": [{"origin": "http://p:1/", "bootstrap_port": 8998}],
+                   "decodes": ["http://d:1/"]}
+        }))
+        .unwrap();
+        assert!(build_engine(both).is_err());
+        let duplicate: Config = serde_json::from_value(json!({
+            "listen": "127.0.0.1:0", "model": "m",
+            "pd": {"prefills": [{"origin": "http://w:1/", "bootstrap_port": 8998}],
+                   "decodes": ["http://w:1/"]}
+        }))
+        .unwrap();
+        assert!(build_engine(duplicate).is_err());
+        assert!(serde_json::from_value::<Config>(json!({
+            "listen": "127.0.0.1:0", "model": "m",
+            "pd": {"prefills": [{"origin": "http://p:1/"}], "decodes": ["http://d:1/"]}
+        }))
+        .is_err());
     }
 }
