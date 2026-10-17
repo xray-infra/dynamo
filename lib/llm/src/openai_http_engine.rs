@@ -493,7 +493,11 @@ impl StreamingEngine for OpenAiHttpEngine {
                         yield Annotated::from_error("backend request cancelled");
                         return;
                     },
-                    result = &mut pd_flight.as_mut().unwrap().task, if !prefill_done => {
+                    // select! evaluates disabled branches too, so the prefill
+                    // future must not assume a PD flight exists.
+                    Some(result) = futures::future::OptionFuture::from(
+                        pd_flight.as_mut().map(|flight| &mut flight.task)
+                    ), if !prefill_done => {
                         prefill_done = true;
                         if let Err(error) = prefill_outcome(result) {
                             yield Annotated::from_error(&error.to_string());
