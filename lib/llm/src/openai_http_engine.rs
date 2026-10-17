@@ -591,8 +591,56 @@ fn worker_request(mut request: NvCreateChatCompletionRequest) -> anyhow::Result<
         body["chat_template_kwargs"] = arguments;
     }
     body["stream"] = json!(true);
-    body["stream_options"] = json!({"include_usage": true});
+    // Cumulative usage on every chunk feeds the frontend's token metrics;
+    // UsageRelay returns only what the public client asked for.
+    body["stream_options"] = json!({"include_usage": true, "continuous_usage_stats": true});
     Ok(body)
+}
+
+/// Turns the worker's per-chunk cumulative usage into the frontend's internal
+/// token metrics and passes on only the usage the request asked for.
+struct UsageRelay {
+    requested: bool,
+    continuous: bool,
+    output_tokens: usize,
+}
+
+impl UsageRelay {
+    fn new(request: &NvCreateChatCompletionRequest) -> Self {
+        let options = request.inner.stream_options.as_ref();
+        Self {
+            requested: options.is_some_and(|o| o.include_usage),
+            continuous: options.is_some_and(|o| o.continuous_usage_stats),
+            output_tokens: 0,
+        }
+    }
+
+    /// Returns false when the chunk carried only usage nobody asked for.
+    fn relay(&mut self, chunk: &mut NvCreateChatCompletionStreamResponse) -> bool {
+        let Some(usage) = chunk.inner.usage.as_ref() else {
+            return true;
+        };
+        let output_tokens = usage.completion_tokens as usize;
+        chunk.llm_metrics = Some(crate::protocols::common::metrics::LLMMetricAnnotation {
+            input_tokens: usage.prompt_tokens as usize,
+            output_tokens,
+            chunk_tokens: output_tokens.saturating_sub(self.output_tokens),
+            cached_tokens: usage
+                .prompt_tokens_details
+                .as_ref()
+                .and_then(|details| details.cached_tokens)
+                .map(|cached| cached as usize),
+            ..Default::default()
+        });
+        self.output_tokens = self.output_tokens.max(output_tokens);
+        if chunk.inner.choices.is_empty() {
+            return self.requested;
+        }
+        if !self.continuous {
+            chunk.inner.usage = None;
+        }
+        true
+    }
 }
 
 fn decode_event(data: &str) -> anyhow::Result<NvCreateChatCompletionStreamResponse> {
@@ -647,6 +695,7 @@ impl StreamingEngine for OpenAiHttpEngine {
 
         let (request, context) = req.into_parts();
         let ctx = context.context();
+        let mut usage = UsageRelay::new(&request);
         // Obtain native usage for upstream unary aggregation and Messages,
         // independent of the public client's stream_options.
         let mut body = worker_request(request)?;
@@ -774,7 +823,7 @@ impl StreamingEngine for OpenAiHttpEngine {
                         return;
                     }
                     if !data.is_empty() {
-                        let chunk = match decode_event(&data) {
+                        let mut chunk = match decode_event(&data) {
                             Ok(chunk) => chunk,
                             Err(_) => { yield Annotated::from_error("invalid backend completion chunk"); return; }
                         };
@@ -783,7 +832,9 @@ impl StreamingEngine for OpenAiHttpEngine {
                                 yield Annotated::from_error("invalid backend choice terminal"); return;
                             }
                         }
-                        yield Annotated::from_data(chunk);
+                        if usage.relay(&mut chunk) {
+                            yield Annotated::from_data(chunk);
+                        }
                     }
                     buffer.drain(..end + separator);
                 }
@@ -937,6 +988,50 @@ mod tests {
     }
 
     #[test]
+    fn usage_relay_feeds_metrics_and_returns_only_requested_usage() {
+        let chunk = |choices: bool, out: u32| {
+            let mut wire = json!({"id": "c", "object": "chat.completion.chunk", "created": 1,
+                "model": "m", "choices": [],
+                "usage": {"prompt_tokens": 100, "completion_tokens": out, "total_tokens": 100 + out,
+                          "prompt_tokens_details": {"cached_tokens": 64}}});
+            if choices {
+                wire["choices"] = json!([{"index": 0, "delta": {"content": "x"}, "finish_reason": null}]);
+            }
+            decode_event(&wire.to_string()).unwrap()
+        };
+        let request = |options: Value| -> NvCreateChatCompletionRequest {
+            let mut raw = json!({"model": "m", "messages": [{"role": "user", "content": "hi"}], "stream": true});
+            if !options.is_null() {
+                raw["stream_options"] = options;
+            }
+            serde_json::from_value(raw).unwrap()
+        };
+        // No usage requested: metrics on every chunk, usage stripped, usage-only chunk dropped.
+        let mut relay = UsageRelay::new(&request(Value::Null));
+        let mut first = chunk(true, 3);
+        assert!(relay.relay(&mut first));
+        assert!(first.inner.usage.is_none());
+        let m = first.llm_metrics.unwrap();
+        assert_eq!((m.input_tokens, m.output_tokens, m.chunk_tokens, m.cached_tokens), (100, 3, 3, Some(64)));
+        let mut second = chunk(true, 7);
+        assert!(relay.relay(&mut second));
+        assert_eq!(second.llm_metrics.unwrap().chunk_tokens, 4);
+        let mut tail = chunk(false, 7);
+        assert!(!relay.relay(&mut tail));
+        // include_usage: final usage chunk kept, per-chunk usage stripped.
+        let mut relay = UsageRelay::new(&request(json!({"include_usage": true})));
+        let mut first = chunk(true, 3);
+        assert!(relay.relay(&mut first) && first.inner.usage.is_none());
+        let mut tail = chunk(false, 3);
+        assert!(relay.relay(&mut tail) && tail.inner.usage.is_some());
+        assert_eq!(tail.llm_metrics.unwrap().chunk_tokens, 0);
+        // continuous_usage_stats: usage kept on every chunk.
+        let mut relay = UsageRelay::new(&request(json!({"include_usage": true, "continuous_usage_stats": true})));
+        let mut first = chunk(true, 3);
+        assert!(relay.relay(&mut first) && first.inner.usage.is_some());
+    }
+
+    #[test]
     fn worker_request_joins_reasoning_segments_into_one_string() {
         let raw = json!({"model": "glm-5.3", "messages": [
             {"role": "user", "content": "Weather?"},
@@ -990,6 +1085,7 @@ mod tests {
             }
             assert_eq!(body["stream"], true);
             assert_eq!(body["stream_options"]["include_usage"], true);
+            assert_eq!(body["stream_options"]["continuous_usage_stats"], true);
         }
     }
 
