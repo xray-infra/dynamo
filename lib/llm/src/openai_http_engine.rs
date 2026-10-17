@@ -62,8 +62,8 @@ struct PdDecode {
 /// worker with a shared bootstrap room. The prefix KV cache lives on the
 /// prefill, so prefill follows the request's session key. A session whose last
 /// turn ran on a prefill costs only its new prompt bytes there and its whole
-/// prompt anywhere else; it goes where it finishes first (outstanding work plus
-/// its own cost). A session without that history follows its rendezvous order
+/// prompt anywhere else; it moves only when that finishes `PD_AFFINITY_SLACK`
+/// sooner (outstanding work plus its own cost). A session without that history follows its rendezvous order
 /// and spills when its first choice is `PD_AFFINITY_SLACK` above the least
 /// loaded prefill. Requests without a key, and decode, go to the least loaded
 /// worker. Outstanding prefill work counts the estimated uncached bytes.
@@ -123,7 +123,14 @@ impl PdRoutes {
                             .filter(|&i| i != placed.prefill)
                             .min_by_key(|&i| cost(i));
                         match other {
-                            Some(i) if cost(i) < cost(placed.prefill) => i,
+                            // Moving drops the cached history; it must save
+                            // real time, not tie on a transient backlog.
+                            Some(i)
+                                if cost(i).saturating_add(PD_AFFINITY_SLACK)
+                                    < cost(placed.prefill) =>
+                            {
+                                i
+                            }
                             _ => placed.prefill,
                         }
                     }
@@ -978,8 +985,12 @@ mod tests {
         let _busy = LoadHold::new(&pd.prefills[home].outstanding, 250_000);
         let (stay, _, work) = pd.select(Some(&key), 310_000);
         assert_eq!((stay, work), (home, 10_000));
-        // Recomputing elsewhere wins once the home backlog exceeds the prompt.
-        let _busier = LoadHold::new(&pd.prefills[home].outstanding, 200_000);
+        // A backlog about the size of the prompt is a tie: stay with the cache.
+        let _tie = LoadHold::new(&pd.prefills[home].outstanding, 200_000);
+        assert_eq!(pd.select(Some(&key), 315_000).0, home);
+        // Recomputing elsewhere wins once the home backlog exceeds the prompt
+        // by more than the slack.
+        let _busier = LoadHold::new(&pd.prefills[home].outstanding, PD_AFFINITY_SLACK);
         let (moved, _, work) = pd.select(Some(&key), 320_000);
         assert_ne!(moved, home);
         assert_eq!(work, 320_000);
