@@ -428,6 +428,78 @@ mod tests {
         cancel.cancel();
     }
 
+    #[tokio::test]
+    async fn pd_multi_turn_session_stays_on_one_prefill_through_http() {
+        use dynamo_llm::http::service::axum::Json;
+        let hits: Arc<std::sync::Mutex<Vec<usize>>> = Default::default();
+        let mut prefills = Vec::new();
+        for i in 0..8 {
+            let hits = hits.clone();
+            let router = Router::new().route(
+                "/v1/chat/completions",
+                post(move |Json(_): Json<serde_json::Value>| {
+                    let hits = hits.clone();
+                    async move {
+                        hits.lock().unwrap().push(i);
+                        "{}"
+                    }
+                }),
+            );
+            let (origin, _) = serve(router).await;
+            prefills.push(json!({"origin": format!("{origin}/"), "bootstrap_port": 8998}));
+        }
+        let decode = Router::new().route(
+            "/v1/chat/completions",
+            post(|| async { ([("content-type", "text/event-stream")], WORKER_RESPONSE) }),
+        );
+        let (decode_origin, _) = serve(decode).await;
+        let config: Config = serde_json::from_value(json!({
+            "listen": "127.0.0.1:0", "model": "test-model",
+            "pd": {"prefills": prefills, "decodes": [format!("{decode_origin}/")]}
+        }))
+        .unwrap();
+        let engine = Arc::new(StreamingEngineAdapter::new(Arc::new(
+            build_engine(config).unwrap(),
+        )));
+        let service = HttpService::builder()
+            .enable_chat_endpoints(true)
+            .enable_admin_api(false)
+            .host("127.0.0.1".to_string())
+            .port(0)
+            .build()
+            .unwrap();
+        service
+            .model_manager()
+            .add_chat_completions_model("test-model", "test-checksum", engine)
+            .unwrap();
+        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let address = listener.local_addr().unwrap();
+        let cancel = CancellationToken::new();
+        service.spawn_with_listener(cancel.clone(), listener).await;
+        let client = reqwest::Client::new();
+        let mut messages = vec![
+            json!({"role": "system", "content": "a long shared system prompt"}),
+            json!({"role": "user", "content": "first question"}),
+        ];
+        for turn in 0..6 {
+            let response = client
+                .post(format!("http://{address}/v1/chat/completions"))
+                .json(&json!({"model": "test-model", "max_tokens": 8, "temperature": 0,
+                              "reasoning_effort": "low", "messages": messages}))
+                .send()
+                .await
+                .unwrap();
+            assert_eq!(response.status(), reqwest::StatusCode::OK);
+            response.bytes().await.unwrap();
+            messages.push(json!({"role": "assistant", "content": format!("answer {turn}")}));
+            messages.push(json!({"role": "user", "content": format!("follow-up {turn}")}));
+        }
+        let hits = hits.lock().unwrap().clone();
+        assert_eq!(hits.len(), 6);
+        assert!(hits.iter().all(|&p| p == hits[0]), "turns spread over prefills: {hits:?}");
+        cancel.cancel();
+    }
+
     #[test]
     fn config_requires_exactly_one_worker_mode() {
         let both: Config = serde_json::from_value(json!({
