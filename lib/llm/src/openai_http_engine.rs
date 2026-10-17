@@ -20,6 +20,7 @@ use serde_json::{Value, json};
 use sha2::{Digest, Sha256};
 
 use crate::engines::StreamingEngine;
+use crate::http::service::error::{HttpError, invalid_argument};
 use crate::protocols::openai::chat_completions::{
     NvCreateChatCompletionRequest, NvCreateChatCompletionStreamResponse,
 };
@@ -223,19 +224,57 @@ impl Drop for AbortOnDrop {
     }
 }
 
+/// Why a prefill did not finish successfully.
+#[derive(Debug)]
+enum PrefillError {
+    /// The worker answered with this non-success status and body.
+    Status(u16, String),
+    /// The worker could not be reached.
+    Unavailable,
+    Failed(&'static str),
+}
+
+/// Keep the worker's status instead of reporting an internal error. The HTTP
+/// service forwards client errors and sanitizes the message.
+fn status_error(code: u16, body: &str) -> Error {
+    HttpError {
+        code,
+        message: body.chars().take(2048).collect(),
+    }
+    .into()
+}
+
+fn unavailable(worker: &str) -> Error {
+    HttpError {
+        code: 503,
+        message: format!("{worker} worker unavailable"),
+    }
+    .into()
+}
+
+fn send_error(error: reqwest::Error, worker: &str) -> Error {
+    if error.is_connect() {
+        unavailable(worker)
+    } else {
+        error.into()
+    }
+}
+
 /// The prefill half of one PD request and the decode load it holds.
 struct PdInFlight {
-    task: tokio::task::JoinHandle<Result<(), String>>,
+    task: tokio::task::JoinHandle<Result<(), PrefillError>>,
     _abort: AbortOnDrop,
     _decode: LoadHold,
 }
 
 fn prefill_outcome(
-    result: Result<Result<(), String>, tokio::task::JoinError>,
+    result: Result<Result<(), PrefillError>, tokio::task::JoinError>,
 ) -> anyhow::Result<()> {
     match result {
         Ok(Ok(())) => Ok(()),
-        Ok(Err(error)) => bail!("prefill failed: {error}"),
+        Ok(Err(PrefillError::Status(code, body))) => Err(status_error(code, &body)),
+        Ok(Err(PrefillError::Unavailable)) => Err(unavailable("prefill")),
+        Ok(Err(PrefillError::Failed(error))) => bail!("prefill failed: {error}"),
         Err(_) => bail!("prefill task ended unexpectedly"),
     }
 }
@@ -247,23 +286,31 @@ async fn run_prefill(
     endpoint: reqwest::Url,
     body: Value,
     _hold: LoadHold,
-) -> Result<(), String> {
+) -> Result<(), PrefillError> {
     let response = client
         .post(endpoint)
         .json(&body)
         .send()
         .await
-        .map_err(|_| "prefill transport failed".to_string())?;
-    if response.status() != reqwest::StatusCode::OK {
-        return Err(format!("prefill HTTP status {}", response.status()));
+        .map_err(|error| {
+            if error.is_connect() {
+                PrefillError::Unavailable
+            } else {
+                PrefillError::Failed("transport failed")
+            }
+        })?;
+    let status = response.status();
+    if status != reqwest::StatusCode::OK {
+        let body = response.text().await.unwrap_or_default();
+        return Err(PrefillError::Status(status.as_u16(), body));
     }
     let mut bytes = response.bytes_stream();
     let mut total = 0usize;
     while let Some(part) = bytes.next().await {
-        let part = part.map_err(|_| "prefill response transport failed".to_string())?;
+        let part = part.map_err(|_| PrefillError::Failed("response transport failed"))?;
         total += part.len();
         if total > MAX_PREFILL_RESPONSE_BYTES {
-            return Err("prefill response too large".into());
+            return Err(PrefillError::Failed("response too large"));
         }
     }
     Ok(())
@@ -458,6 +505,26 @@ fn worker_request(mut request: NvCreateChatCompletionRequest) -> anyhow::Result<
     }
     request.normalize_reasoning_template_args()?;
     let mut body = serde_json::to_value(request)?;
+    // Dynamo keeps one assistant reasoning segment per tool call (Anthropic
+    // thinking blocks); OpenAI HTTP workers take reasoning_content as a string.
+    if let Some(messages) = body.get_mut("messages").and_then(Value::as_array_mut) {
+        for message in messages.iter_mut().filter_map(Value::as_object_mut) {
+            let Some(Value::Array(segments)) = message.get("reasoning_content") else {
+                continue;
+            };
+            let text = segments
+                .iter()
+                .filter_map(Value::as_str)
+                .filter(|segment| !segment.is_empty())
+                .collect::<Vec<_>>()
+                .join("\n");
+            if text.is_empty() {
+                message.remove("reasoning_content");
+            } else {
+                message.insert("reasoning_content".into(), json!(text));
+            }
+        }
+    }
     if let Some(cache_salt) = cache_salt {
         body["cache_salt"] = json!(cache_salt);
     }
@@ -530,7 +597,9 @@ impl StreamingEngine for OpenAiHttpEngine {
         let mut pd_flight = None;
         let mut prefill_done = false;
         let response = if let Some(pd) = &self.pd {
-            ensure!(choices == 1, "PD disaggregation serves one choice per request");
+            if choices != 1 {
+                return Err(invalid_argument("PD disaggregation serves one choice per request (n must be 1)").into());
+            }
             let (prefill_index, decode_index) = pd.select(session_key(&body).as_deref());
             let (prefill, decode) = (&pd.prefills[prefill_index], &pd.decodes[decode_index]);
             body["bootstrap_host"] = json!(prefill.bootstrap_host);
@@ -560,7 +629,7 @@ impl StreamingEngine for OpenAiHttpEngine {
                         prefill_done = true;
                         prefill_outcome(result)?;
                     },
-                    response = &mut send => break response?,
+                    response = &mut send => break response.map_err(|e| send_error(e, "decode"))?,
                 }
             };
             pd_flight = Some(flight);
@@ -569,14 +638,16 @@ impl StreamingEngine for OpenAiHttpEngine {
             let worker = &self.workers[self.worker_index(&body)];
             tokio::select! {
                 _ = ctx.stopped() => bail!("request cancelled before native HTTP headers"),
-                response = self.client.post(worker.clone()).json(&body).send() => response?,
+                response = self.client.post(worker.clone()).json(&body).send() => {
+                    response.map_err(|e| send_error(e, "backend"))?
+                }
             }
         };
-        ensure!(
-            response.status() == reqwest::StatusCode::OK,
-            "backend HTTP status {}",
-            response.status()
-        );
+        if response.status() != reqwest::StatusCode::OK {
+            let status = response.status().as_u16();
+            let body = response.text().await.unwrap_or_default();
+            return Err(status_error(status, &body));
+        }
         ensure!(
             response
                 .headers()
@@ -775,6 +846,40 @@ mod tests {
             .map(|i| pd.select(Some(format!("s{i}").as_bytes())).0)
             .collect();
         assert!(homes.len() >= 6, "{homes:?}");
+    }
+
+    #[test]
+    fn worker_request_joins_reasoning_segments_into_one_string() {
+        let raw = json!({"model": "glm-5.3", "messages": [
+            {"role": "user", "content": "Weather?"},
+            {"role": "assistant", "reasoning_content": ["Need the tool.", ""],
+             "tool_calls": [{"id": "c1", "type": "function",
+                             "function": {"name": "get_weather", "arguments": "{}"}}]},
+            {"role": "tool", "tool_call_id": "c1", "content": "12C"},
+            {"role": "assistant", "reasoning_content": ["", ""], "content": "12C."},
+            {"role": "assistant", "reasoning_content": "plain", "content": "ok"}
+        ]});
+        let body = worker_request(serde_json::from_value(raw).unwrap()).unwrap();
+        let messages = body["messages"].as_array().unwrap();
+        assert_eq!(messages[1]["reasoning_content"], "Need the tool.");
+        assert!(messages[3].get("reasoning_content").is_none());
+        assert_eq!(messages[4]["reasoning_content"], "plain");
+    }
+
+    #[test]
+    fn prefill_failures_keep_worker_status() {
+        let status = |result| {
+            prefill_outcome(Ok(result))
+                .unwrap_err()
+                .downcast::<HttpError>()
+                .map(|e| e.code)
+                .ok()
+        };
+        assert_eq!(status(Err(PrefillError::Status(400, "bad".into()))), Some(400));
+        assert_eq!(status(Err(PrefillError::Status(500, "boom".into()))), Some(500));
+        assert_eq!(status(Err(PrefillError::Unavailable)), Some(503));
+        assert_eq!(status(Err(PrefillError::Failed("x"))), None);
+        assert!(prefill_outcome(Ok(Ok(()))).is_ok());
     }
 
     #[test]
